@@ -145,7 +145,7 @@ export default function AccountDetail() {
         <div className="p-4 lg:p-8">
             {/* Header */}
             <div className="flex items-center gap-4 mb-8">
-                <Link to="/accounts" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <Link to="/app/accounts" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
                     <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                 </Link>
                 <div className="flex-1">
