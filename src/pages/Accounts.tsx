@@ -119,7 +119,7 @@ export default function Accounts() {
                     {accounts.map(account => (
                         <Link
                             key={account.id}
-                            to={`/accounts/${account.id}`}
+                            to={`/app/accounts/${account.id}`}
                             className="block bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-blue-300 dark:hover:border-blue-600 transition-colors group"
                         >
                             <div className="flex items-center justify-between">

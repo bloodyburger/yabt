@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { BudgetProvider } from '@/contexts/BudgetContext'
@@ -34,6 +34,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
 
     return <>{children}</>
+}
+
+// Dynamic redirect component for routes with params
+function AccountDetailRedirect() {
+    const { id } = useParams<{ id: string }>()
+    return <Navigate to={`/app/accounts/${id}`} replace />
 }
 
 function AppRoutes() {
@@ -78,7 +84,7 @@ function AppRoutes() {
             {/* Legacy route redirects */}
             <Route path="/budget" element={<Navigate to="/app/budget" replace />} />
             <Route path="/accounts" element={<Navigate to="/app/accounts" replace />} />
-            <Route path="/accounts/:id" element={<Navigate to="/app/accounts/:id" replace />} />
+            <Route path="/accounts/:id" element={<AccountDetailRedirect />} />
             <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
             <Route path="/reports" element={<Navigate to="/app/reports" replace />} />
             <Route path="/net-worth" element={<Navigate to="/app/net-worth" replace />} />
