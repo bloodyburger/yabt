@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Palette, Check, Loader2 } from 'lucide-react'
+import { User, Palette, Check, Loader2, Calendar } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 
@@ -24,12 +24,16 @@ const dateFormats = [
     { value: 'DD-MM-YYYY', label: '15-01-2024' },
 ]
 
+// Generate days 1-28 for month start day options
+const monthStartDays = Array.from({ length: 28 }, (_, i) => i + 1)
+
 export default function Settings() {
     const { user } = useAuth()
-    const { currency, dateFormat, updateSettings } = useSettings()
+    const { currency, dateFormat, monthStartDay, updateSettings } = useSettings()
 
     const [selectedCurrency, setSelectedCurrency] = useState(currency)
     const [selectedDateFormat, setSelectedDateFormat] = useState(dateFormat)
+    const [selectedMonthStartDay, setSelectedMonthStartDay] = useState(monthStartDay)
     const [saving, setSaving] = useState(false)
     const [showSuccess, setShowSuccess] = useState(false)
     const [error, setError] = useState('')
@@ -38,7 +42,7 @@ export default function Settings() {
         setSaving(true)
         setError('')
 
-        const { error: updateError } = await updateSettings(selectedCurrency, selectedDateFormat)
+        const { error: updateError } = await updateSettings(selectedCurrency, selectedDateFormat, selectedMonthStartDay)
 
         if (updateError) {
             setError(updateError.message)
@@ -142,6 +146,24 @@ export default function Settings() {
                                         <option key={f.value} value={f.value}>{f.label}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Month Start Day</label>
+                                <select
+                                    value={selectedMonthStartDay}
+                                    onChange={(e) => setSelectedMonthStartDay(Number(e.target.value))}
+                                    className="input"
+                                >
+                                    {monthStartDays.map(day => (
+                                        <option key={day} value={day}>
+                                            {day === 1 ? '1st (Default)' : `${day}${day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'}`}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Your budget month runs from this day to the day before next month's start.
+                                </p>
                             </div>
 
                             <button

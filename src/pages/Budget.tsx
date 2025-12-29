@@ -27,7 +27,7 @@ interface MonthlyBudget {
 
 export default function Budget() {
     const { currentBudget } = useBudget()
-    const { currency } = useSettings()
+    const { currency, monthStartDay } = useSettings()
 
     const [currentMonth, setCurrentMonth] = useState(new Date())
     const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([])
@@ -40,10 +40,41 @@ export default function Budget() {
     const [saving, setSaving] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
+    // Helper to get budget month date range based on monthStartDay setting
+    const getBudgetMonthRange = (baseDate: Date) => {
+        const year = baseDate.getFullYear()
+        const month = baseDate.getMonth()
+
+        // Start date: monthStartDay of current month
+        const startDate = new Date(year, month, monthStartDay)
+
+        // End date: day before monthStartDay of next month
+        const endDate = new Date(year, month + 1, monthStartDay - 1)
+
+        return { startDate, endDate }
+    }
+
+    // Format the budget month range for display
+    const formatBudgetPeriod = (baseDate: Date) => {
+        const { startDate, endDate } = getBudgetMonthRange(baseDate)
+        const formatDate = (d: Date) => d.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
+        })
+
+        if (monthStartDay === 1) {
+            // Standard month - just show month name
+            return baseDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        }
+
+        // Custom date range
+        return `${formatDate(startDate)} - ${formatDate(endDate)}, ${endDate.getFullYear()}`
+    }
+
     useEffect(() => {
         if (!currentBudget) return
         fetchBudgetData()
-    }, [currentBudget, currentMonth])
+    }, [currentBudget, currentMonth, monthStartDay])
 
     useEffect(() => {
         if (editingCategory && inputRef.current) {
@@ -58,11 +89,10 @@ export default function Budget() {
 
         const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
 
-        // Get first and last day of month for transaction query
-        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
-        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
-        const firstDayStr = firstDay.toISOString().split('T')[0]
-        const lastDayStr = lastDay.toISOString().split('T')[0]
+        // Get custom budget month date range
+        const { startDate, endDate } = getBudgetMonthRange(currentMonth)
+        const firstDayStr = startDate.toISOString().split('T')[0]
+        const lastDayStr = endDate.toISOString().split('T')[0]
 
         // Fetch category groups with categories
         const { data: groups } = await supabase
@@ -255,8 +285,8 @@ export default function Budget() {
                     <button onClick={prevMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors">
                         <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                     </button>
-                    <span className="px-4 py-2 font-medium text-slate-900 dark:text-white min-w-[160px] text-center">
-                        {formatMonth(currentMonth)}
+                    <span className="px-4 py-2 font-medium text-slate-900 dark:text-white min-w-[200px] text-center">
+                        {formatBudgetPeriod(currentMonth)}
                     </span>
                     <button onClick={nextMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors">
                         <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />

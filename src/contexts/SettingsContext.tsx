@@ -7,13 +7,15 @@ interface Profile {
     email: string
     currency_code: string
     date_format: string
+    month_start_day: number
 }
 
 interface SettingsContextType {
     currency: string
     dateFormat: string
+    monthStartDay: number
     loading: boolean
-    updateSettings: (currency: string, dateFormat: string) => Promise<{ error: Error | null }>
+    updateSettings: (currency: string, dateFormat: string, monthStartDay: number) => Promise<{ error: Error | null }>
     refetch: () => Promise<void>
 }
 
@@ -23,6 +25,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth()
     const [currency, setCurrency] = useState('USD')
     const [dateFormat, setDateFormat] = useState('YYYY-MM-DD')
+    const [monthStartDay, setMonthStartDay] = useState(1)
     const [loading, setLoading] = useState(true)
 
     const fetchSettings = async () => {
@@ -33,13 +36,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
         const { data } = await supabase
             .from('profiles')
-            .select('currency_code, date_format')
+            .select('currency_code, date_format, month_start_day')
             .eq('id', user.id)
             .single()
 
         if (data) {
             setCurrency(data.currency_code || 'USD')
             setDateFormat(data.date_format || 'YYYY-MM-DD')
+            setMonthStartDay(data.month_start_day ?? 1)
         }
         setLoading(false)
     }
@@ -48,7 +52,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         fetchSettings()
     }, [user])
 
-    const updateSettings = async (newCurrency: string, newDateFormat: string) => {
+    const updateSettings = async (newCurrency: string, newDateFormat: string, newMonthStartDay: number) => {
         if (!user) return { error: new Error('Not authenticated') }
 
         const { error } = await supabase
@@ -56,6 +60,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             .update({
                 currency_code: newCurrency,
                 date_format: newDateFormat,
+                month_start_day: newMonthStartDay,
                 updated_at: new Date().toISOString()
             })
             .eq('id', user.id)
@@ -63,6 +68,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (!error) {
             setCurrency(newCurrency)
             setDateFormat(newDateFormat)
+            setMonthStartDay(newMonthStartDay)
         }
 
         return { error }
@@ -72,6 +78,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         <SettingsContext.Provider value={{
             currency,
             dateFormat,
+            monthStartDay,
             loading,
             updateSettings,
             refetch: fetchSettings
