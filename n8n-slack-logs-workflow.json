@@ -18,7 +18,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format log for Slack - simplified version\nconst log = $input.first().json;\n\n// Emojis based on log level\nconst emojis = {\n  error: '🚨',\n  warn: '⚠️',\n  info: 'ℹ️',\n  debug: '🔍'\n};\n\nconst level = log.level || 'info';\nconst emoji = emojis[level] || emojis.info;\n\n// Build a simple text message with mrkdwn formatting\nlet text = `${emoji} *YABT ${level.toUpperCase()}*\\n`;\ntext += `*Message:* ${log.message || 'No message'}\\n`;\ntext += `*Time:* ${log.timestamp || new Date().toISOString()}\\n`;\n\nif (log.requestId) {\n  text += `*Request ID:* \\`${log.requestId}\\`\\n`;\n}\n\nif (log.method && log.path) {\n  text += `*Endpoint:* \\`${log.method} ${log.path}\\`\\n`;\n}\n\nif (log.statusCode) {\n  text += `*Status:* ${log.statusCode}\\n`;\n}\n\nif (log.responseTime) {\n  text += `*Response Time:* ${log.responseTime}\\n`;\n}\n\nif (log.ip) {\n  text += `*IP:* ${log.ip}\\n`;\n}\n\nif (log.body) {\n  const bodyStr = typeof log.body === 'string' ? log.body : JSON.stringify(log.body);\n  if (bodyStr.length < 200) {\n    text += `*Body:* \\`\\`\\`${bodyStr}\\`\\`\\`\\n`;\n  }\n}\n\ntext += `\\n_Service: ${log.service || 'yabt'} | Env: ${log.environment || 'production'}_`;\n\nreturn {\n  json: {\n    channel: '#yabt-logs',\n    text: text\n  }\n};"
+        "jsCode": "// Format log for Slack\n// The webhook data can be nested in 'body' or at root level\nconst input = $input.first().json;\nconst log = input.body || input;\n\n// Debug: log what we received\nconsole.log('Received:', JSON.stringify(input));\n\n// Emojis based on log level\nconst emojis = {\n  error: '🚨',\n  warn: '⚠️',\n  info: 'ℹ️',\n  debug: '🔍'\n};\n\nconst level = log.level || 'info';\nconst emoji = emojis[level] || emojis.info;\n\n// Build a simple text message with mrkdwn formatting\nlet text = `${emoji} *YABT ${level.toUpperCase()}*\\n`;\ntext += `*Message:* ${log.message || 'No message'}\\n`;\ntext += `*Time:* ${log.timestamp || new Date().toISOString()}\\n`;\n\nif (log.requestId) {\n  text += `*Request ID:* \\`${log.requestId}\\`\\n`;\n}\n\nif (log.method && log.path) {\n  text += `*Endpoint:* \\`${log.method} ${log.path}\\`\\n`;\n}\n\nif (log.statusCode) {\n  text += `*Status:* ${log.statusCode}\\n`;\n}\n\nif (log.responseTime) {\n  text += `*Response Time:* ${log.responseTime}\\n`;\n}\n\nif (log.ip) {\n  text += `*IP:* ${log.ip}\\n`;\n}\n\nif (log.body && typeof log.body === 'object') {\n  const bodyStr = JSON.stringify(log.body);\n  if (bodyStr.length < 300) {\n    text += `*Body:* \\`\\`\\`${bodyStr}\\`\\`\\`\\n`;\n  }\n}\n\ntext += `\\n_Service: ${log.service || 'yabt'} | Env: ${log.environment || 'production'}_`;\n\nreturn {\n  json: {\n    channel: '#yabt-logs',\n    text: text\n  }\n};"
       },
       "id": "code-node",
       "name": "Format for Slack",
@@ -62,7 +62,7 @@
           "conditions": [
             {
               "id": "filter-level",
-              "leftValue": "={{ $json.level }}",
+              "leftValue": "={{ $json.body?.level || $json.level }}",
               "rightValue": "debug",
               "operator": {
                 "type": "string",
@@ -123,6 +123,6 @@
   "staticData": null,
   "tags": [],
   "triggerCount": 0,
-  "updatedAt": "2025-12-29T09:42:00.000Z",
-  "versionId": "3"
+  "updatedAt": "2025-12-29T09:53:00.000Z",
+  "versionId": "4"
 }
