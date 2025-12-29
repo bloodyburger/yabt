@@ -51,7 +51,7 @@
 ### Why YABT?
 
 - 🆓 **100% Free Forever** - No subscriptions, no premium tiers, no hidden costs
-- 🤖 **AI-Powered** - Natural language transaction entry powered by Google Gemini
+- 🤖 **AI-Powered** - Natural language transaction entry powered by Ollama
 - 🔒 **Privacy-Focused** - Self-host option available; your data stays yours
 - 🎨 **Beautiful UI** - Modern, responsive design with dark mode
 - 🚀 **Lightning Fast** - Built with Vite and React for optimal performance
@@ -126,27 +126,23 @@ Stay informed about important events and budget alerts.
                                       │ HTTPS
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              SUPABASE (BaaS)                                 │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐  │
-│  │   PostgreSQL     │  │  Authentication   │  │    Row Level Security    │  │
-│  │   ───────────    │  │  ───────────────  │  │    ─────────────────     │  │
-│  │  • profiles      │  │  • Email/Password │  │  • User data isolation   │  │
-│  │  • accounts      │  │  • Session Mgmt   │  │  • Secure by default     │  │
-│  │  • transactions  │  │  • JWT Tokens     │  │  • Policy-based access   │  │
-│  │  • categories    │  │                   │  │                          │  │
-│  │  • budgets       │  │                   │  │                          │  │
-│  └──────────────────┘  └──────────────────┘  └──────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │ API Call
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          GOOGLE GEMINI AI (Optional)                         │
+│                                GO SERVER                                     │
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                    Natural Language Processing                           ││
-│  │        "Spent 500 at Starbucks from HDFC" → { amount: 500, ... }        ││
+│  │  • Static File Serving (SPA)                                            ││
+│  │  • AI Request Proxy (CORS handling)                                     ││
+│  │  • Structural Logging & Webhooks                                        ││
 │  └─────────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────┘
+                  │                                         │
+                  │ API Call (/api/ai/chat)                 │ Client SDK
+                  ▼                                         ▼
+┌─────────────────────────────────────┐   ┌─────────────────────────────────────┐
+│              OLLAMA                 │   │           SUPABASE (BaaS)           │
+│  ┌───────────────────────────────┐  │   │  ┌───────────────────────────────┐  │
+│  │  Natural Language Processing  │  │   │  │   PostgreSQL + Auth + RLS     │  │
+│  │  "Spent 500..." → JSON        │  │   │  │   Secure Data Storage         │  │
+│  └───────────────────────────────┘  │   │  └───────────────────────────────┘  │
+└─────────────────────────────────────┘   └─────────────────────────────────────┘
 ```
 
 ### Data Flow
@@ -156,7 +152,7 @@ Stay informed about important events and budget alerts.
 3. **API Calls** → Supabase client handles data operations
 4. **Authentication** → Supabase Auth manages user sessions
 5. **Data Security** → Row Level Security ensures data isolation
-6. **AI Processing** → Gemini API parses natural language (optional)
+6. **AI Processing** → Go Server proxies requests to Ollama API (optional)
 
 ---
 
@@ -169,9 +165,9 @@ Stay informed about important events and budget alerts.
 | **Build Tool** | Vite | Fast Development & Optimized Builds |
 | **Styling** | Tailwind CSS | Utility-First Styling |
 | **Icons** | Lucide React | Beautiful, Consistent Icons |
-| **Backend** | Supabase | Database, Auth, Real-time |
-| **Database** | PostgreSQL | Relational Data Storage |
-| **AI** | Google Gemini | Natural Language Processing |
+| **Backend** | Go (Golang) | Static Serving, API Proxy, Logging |
+| **Database** | Supabase | Database, Auth, Real-time |
+| **AI** | Ollama | Natural Language Processing |
 | **Containerization** | Docker | Consistent Deployment |
 | **Routing** | React Router | Client-Side Navigation |
 
@@ -186,7 +182,7 @@ Stay informed about important events and budget alerts.
 | Docker | 20.10+ |
 | Docker Compose | 2.0+ |
 | Supabase Account | Free tier |
-| Gemini API Key | Optional |
+| Ollama API Key | Optional |
 
 ### Quick Start
 
@@ -231,11 +227,11 @@ cd yabt
 </details>
 
 <details>
-<summary><strong>🤖 Step 3: Get Gemini API Key (Optional)</strong></summary>
+<summary><strong>🤖 Step 3: Get Ollama API Key (Optional)</strong></summary>
 
-1. Visit [Google AI Studio](https://aistudio.google.com/apikey)
-2. Create a new API key
-3. Copy the key for the next step
+1. You will need access to an Ollama instance or a compatible API.
+2. The default model used is `gpt-oss:20b-cloud`, but this can be configured.
+3. Set the key in your environment variables.
 
 > Without this, manual transaction entry still works perfectly.
 </details>
@@ -251,7 +247,9 @@ Edit `.env` with your values:
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_GEMINI_API_KEY=your-gemini-key  # Optional
+VITE_OLLAMA_API_KEY=your-ollama-key  # Optional
+OLLAMA_API_KEY=your-ollama-key       # Optional (Backend)
+LOG_WEBHOOK_URL=https://n8n.yourdomain.com/webhook/logs # Optional
 ```
 </details>
 
@@ -279,7 +277,9 @@ docker compose down
 |----------|-------------|:--------:|
 | `VITE_SUPABASE_URL` | Supabase project URL | ✅ |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key | ✅ |
-| `VITE_GEMINI_API_KEY` | Google Gemini API key for AI Quick Add | ❌ |
+| `VITE_OLLAMA_API_KEY` | Ollama API key for AI Quick Add | ❌ |
+| `OLLAMA_API_KEY` | Backend API key for Ollama Proxy | ❌ |
+| `LOG_WEBHOOK_URL` | Webhook URL for server logs | ❌ |
 | `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key (bot protection) | ❌ |
 
 > **🛡️ Bot Protection**: To prevent automated signups, you can enable [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) CAPTCHA. Get your free site key at [dash.cloudflare.com/turnstile](https://dash.cloudflare.com/turnstile).
@@ -380,6 +380,7 @@ yabt/
 │       └── 📂 auth/        # Authentication pages
 ├── 📂 supabase/            # Database schemas
 ├── 📄 Dockerfile           # Docker configuration
+├── 📄 main.go              # Go Server entrypoint
 ├── 📄 docker-compose.yml   # Docker Compose config
 ├── 📄 .env.example         # Environment template
 └── 📄 package.json         # Dependencies

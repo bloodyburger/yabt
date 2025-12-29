@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { logger } from '@/lib/logger'
 
 interface AuthContextType {
     user: User | null
@@ -42,6 +43,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             options.options = { captchaToken }
         }
         const { error } = await supabase.auth.signInWithPassword(options)
+        if (!error) {
+            logger.info('User signed in', { email })
+        }
         return { error }
     }
 
@@ -51,11 +55,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             options.options = { captchaToken }
         }
         const { error } = await supabase.auth.signUp(options)
+        if (!error) {
+            logger.info('User signed up', { email })
+        }
         return { error }
     }
 
     const signOut = async () => {
+        const email = user?.email
         await supabase.auth.signOut()
+        logger.info('User signed out', { email })
     }
 
     return (

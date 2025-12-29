@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -52,6 +53,7 @@ type LogEntry struct {
 	UserAgent    string      `json:"userAgent,omitempty"`
 	Referer      string      `json:"referer,omitempty"`
 	Body         interface{} `json:"body,omitempty"`
+	User         string      `json:"user,omitempty"`
 	Error        string      `json:"error,omitempty"`
 }
 
@@ -90,7 +92,15 @@ func logJSON(level, message string, entry *LogEntry) {
 
 	entry.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	entry.Level = level
-	entry.Message = message
+	entry.Level = level
+
+	// Format message with user if available
+	userPrefix := "[-]"
+	if entry.User != "" {
+		userPrefix = fmt.Sprintf("[%s]", entry.User)
+	}
+	entry.Message = fmt.Sprintf("%s %s", userPrefix, message)
+
 	entry.Service = "yabt"
 	entry.Environment = nodeEnv
 
@@ -167,6 +177,32 @@ func redactSensitiveFields(data map[string]interface{}) map[string]interface{} {
 	return result
 }
 
+// extractUserFromJWT attempts to extract email or sub from JWT token
+func extractUserFromJWT(tokenString string) string {
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+
+	if email, ok := claims["email"].(string); ok {
+		return email
+	}
+	if sub, ok := claims["sub"].(string); ok {
+		return sub
+	}
+	return ""
+}
+
 // ResponseWriter wrapper to capture status code and response body
 type responseWriter struct {
 	http.ResponseWriter
@@ -229,6 +265,13 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			Referer:   r.Header.Get("Referer"),
 		}
 
+		// Attempt to extract user from Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			reqEntry.User = extractUserFromJWT(token)
+		}
+
 		// Log request body if enabled
 		if logRequestBody && r.Body != nil && r.ContentLength > 0 {
 			bodyBytes, err := io.ReadAll(r.Body)
@@ -261,6 +304,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			StatusCode:   rw.statusCode,
 			ResponseTime: responseTime.String(),
 			IP:           ip,
+			User:         reqEntry.User, // Pass user to response log
 		}
 
 		// Log response body for JSON responses if enabled
@@ -312,6 +356,7 @@ func logAPIHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Level   string                 `json:"level"`
 		Message string                 `json:"message"`
+		User    string                 `json:"user"`
 		Meta    map[string]interface{} `json:"meta"`
 	}
 
@@ -329,7 +374,9 @@ func logAPIHandler(w http.ResponseWriter, r *http.Request) {
 		req.Level = "info"
 	}
 
-	entry := &LogEntry{}
+	entry := &LogEntry{
+		User: req.User,
+	}
 	logJSON(req.Level, req.Message, entry)
 
 	// Ship to webhook

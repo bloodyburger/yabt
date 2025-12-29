@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
+import { logger } from '@/lib/logger'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { BudgetProvider } from '@/contexts/BudgetContext'
@@ -42,57 +44,76 @@ function AccountDetailRedirect() {
     return <Navigate to={`/app/accounts/${id}`} replace />
 }
 
+function PageLogger() {
+    const location = useLocation()
+    const { user } = useAuth()
+
+    useEffect(() => {
+        if (user) {
+            logger.info(`Page View: ${location.pathname}`, {
+                path: location.pathname,
+                search: location.search
+            })
+        }
+    }, [location.pathname, user])
+
+    return null
+}
+
 function AppRoutes() {
     return (
-        <Routes>
-            {/* Public Landing Page */}
-            <Route path="/" element={<Landing />} />
+        <>
+            <PageLogger />
+            <Routes>
+                {/* Public Landing Page */}
+                <Route path="/" element={<Landing />} />
 
-            {/* Legal & Info Pages */}
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/help" element={<Help />} />
+                {/* Legal & Info Pages */}
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/help" element={<Help />} />
 
-            {/* Auth Routes */}
-            <Route path="/auth/login" element={<Login />} />
-            <Route path="/auth/signup" element={<Signup />} />
+                {/* Auth Routes */}
+                <Route path="/auth/login" element={<Login />} />
+                <Route path="/auth/signup" element={<Signup />} />
 
-            {/* Protected Routes */}
-            <Route
-                path="/app"
-                element={
-                    <ProtectedRoute>
-                        <SettingsProvider>
-                            <BudgetProvider>
-                                <Layout />
-                            </BudgetProvider>
-                        </SettingsProvider>
-                    </ProtectedRoute>
-                }
-            >
-                <Route index element={<Navigate to="/app/budget" replace />} />
-                <Route path="budget" element={<Budget />} />
-                <Route path="accounts" element={<Accounts />} />
-                <Route path="accounts/:id" element={<AccountDetail />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="reports" element={<Reports />} />
-                <Route path="net-worth" element={<NetWorth />} />
-                <Route path="activity" element={<Activity />} />
-            </Route>
+                {/* Protected Routes */}
+                <Route
+                    path="/app"
+                    element={
+                        <ProtectedRoute>
+                            <SettingsProvider>
+                                <BudgetProvider>
+                                    <Layout />
+                                </BudgetProvider>
+                            </SettingsProvider>
+                        </ProtectedRoute>
+                    }
+                >
+                    <Route index element={<Navigate to="/app/budget" replace />} />
+                    <Route path="budget" element={<Budget />} />
+                    <Route path="accounts" element={<Accounts />} />
+                    <Route path="accounts/:id" element={<AccountDetail />} />
+                    <Route path="settings" element={<Settings />} />
+                    <Route path="reports" element={<Reports />} />
+                    <Route path="net-worth" element={<NetWorth />} />
+                    <Route path="activity" element={<Activity />} />
+                </Route>
 
-            {/* Legacy route redirects */}
-            <Route path="/budget" element={<Navigate to="/app/budget" replace />} />
-            <Route path="/accounts" element={<Navigate to="/app/accounts" replace />} />
-            <Route path="/accounts/:id" element={<AccountDetailRedirect />} />
-            <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
-            <Route path="/reports" element={<Navigate to="/app/reports" replace />} />
-            <Route path="/net-worth" element={<Navigate to="/app/net-worth" replace />} />
-            <Route path="/activity" element={<Navigate to="/app/activity" replace />} />
+                {/* Legacy route redirects */}
+                <Route path="/budget" element={<Navigate to="/app/budget" replace />} />
+                <Route path="/accounts" element={<Navigate to="/app/accounts" replace />} />
+                <Route path="/accounts/:id" element={<AccountDetailRedirect />} />
+                <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
+                <Route path="/reports" element={<Navigate to="/app/reports" replace />} />
+                <Route path="/net-worth" element={<Navigate to="/app/net-worth" replace />} />
+                <Route path="/activity" element={<Navigate to="/app/activity" replace />} />
 
-            {/* Catch-all redirect */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+                {/* Catch-all redirect */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        </>
     )
 }
 
