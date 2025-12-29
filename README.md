@@ -11,6 +11,7 @@
 [![GitHub Issues](https://img.shields.io/github/issues/bloodyburger/yabt?style=for-the-badge&logo=github&color=ef4444)](https://github.com/bloodyburger/yabt/issues)
 [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/bloodyburger/yabt?style=for-the-badge&logo=github&color=22c55e)](https://github.com/bloodyburger/yabt/pulls)
 [![License](https://img.shields.io/github/license/bloodyburger/yabt?style=for-the-badge&color=blue)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/bloodyburger?style=for-the-badge&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/bloodyburger)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://reactjs.org/)
@@ -32,13 +33,13 @@
 - [Features](#-features)
 - [Architecture](#-architecture)
 - [Tech Stack](#-tech-stack)
-- [Screenshots](#-screenshots)
 - [Self-Hosting Guide](#-self-hosting-guide)
 - [Local Development](#-local-development)
 - [Project Structure](#-project-structure)
 - [Database Schema](#-database-schema)
 - [Roadmap](#-roadmap)
 - [Contributing](#-contributing)
+- [Sponsors](#-sponsors)
 - [License](#-license)
 
 ---
@@ -173,31 +174,6 @@ Stay informed about important events and budget alerts.
 | **AI** | Google Gemini | Natural Language Processing |
 | **Containerization** | Docker | Consistent Deployment |
 | **Routing** | React Router | Client-Side Navigation |
-
----
-
-## 📸 Screenshots
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><strong>Landing Page</strong></td>
-<td align="center"><strong>Budget View</strong></td>
-</tr>
-<tr>
-<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Landing+Page" alt="Landing Page"/></td>
-<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Budget+View" alt="Budget View"/></td>
-</tr>
-<tr>
-<td align="center"><strong>Reports</strong></td>
-<td align="center"><strong>Net Worth</strong></td>
-</tr>
-<tr>
-<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Reports" alt="Reports"/></td>
-<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Net+Worth" alt="Net Worth"/></td>
-</tr>
-</table>
-</div>
 
 ---
 
@@ -509,15 +485,40 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
 
-## 💖 Support the Project
+## 💖 Sponsors
 
-YABT is **100% free** and always will be. If you find it useful:
+YABT is **100% free** and always will be. Your sponsorship helps cover hosting costs and supports continued development.
 
 <div align="center">
 
-[![Star on GitHub](https://img.shields.io/badge/⭐_Star_on_GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/bloodyburger/yabt)
-[![Report Bug](https://img.shields.io/badge/🐛_Report_Bug-ef4444?style=for-the-badge)](https://github.com/bloodyburger/yabt/issues)
-[![Request Feature](https://img.shields.io/badge/✨_Request_Feature-22c55e?style=for-the-badge)](https://github.com/bloodyburger/yabt/issues)
+[![Sponsor on GitHub](https://img.shields.io/badge/💖_Sponsor_on_GitHub-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/bloodyburger)
+
+</div>
+
+### Sponsor Tiers
+
+| Tier | Amount | Benefits |
+|------|--------|----------|
+| ☕ Coffee | $5/month | Name in README |
+| 🍕 Pizza | $10/month | Name + priority issue support |
+| 🚀 Rocket | $25/month | All above + feature request priority |
+| 💎 Diamond | $50/month | All above + 1-on-1 setup support |
+
+### Our Sponsors
+
+<a href="https://github.com/sponsors/bloodyburger">
+  <img src="https://img.shields.io/badge/Become_a_Sponsor-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" />
+</a>
+
+*Your name or logo could be here!*
+
+---
+
+## ⭐ Star History
+
+<div align="center">
+
+[![Star History Chart](https://api.star-history.com/svg?repos=bloodyburger/yabt&type=Date)](https://star-history.com/#bloodyburger/yabt&Date)
 
 </div>
 
