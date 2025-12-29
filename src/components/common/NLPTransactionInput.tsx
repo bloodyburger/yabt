@@ -23,14 +23,14 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
         setParsedResult(null)
 
         try {
-            // Call Ollama Cloud API (OpenAI-compatible)
+            // Call Ollama Cloud API
             const apiKey = import.meta.env.VITE_OLLAMA_API_KEY
             if (!apiKey) {
                 throw new Error('Ollama API key not configured')
             }
 
             const response = await fetch(
-                'https://api.ollama.com/v1/chat/completions',
+                'https://ollama.com/api/chat',
                 {
                     method: 'POST',
                     headers: {
@@ -65,19 +65,23 @@ Rules:
 - type: "expense" for spending, "income" for receiving money
 - If any field cannot be determined, use null`
                         }],
-                        temperature: 0.1,
-                        max_tokens: 250
+                        stream: false,
+                        options: {
+                            temperature: 0.1,
+                            num_predict: 250
+                        }
                     })
                 }
             )
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}))
-                throw new Error(errorData.error?.message || `API Error: ${response.status}`)
+                throw new Error(errorData.error || `API Error: ${response.status}`)
             }
 
             const data = await response.json()
-            const resultText = data.choices?.[0]?.message?.content || ''
+            // Ollama API returns message.content, not choices[x].message.content
+            const resultText = data.message?.content || data.choices?.[0]?.message?.content || ''
 
             // Parse JSON from response
             const jsonMatch = resultText.match(/\{[\s\S]*\}/)
