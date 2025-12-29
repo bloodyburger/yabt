@@ -13,9 +13,11 @@ declare global {
             render: (container: HTMLElement, options: {
                 sitekey: string
                 callback: (token: string) => void
-                'error-callback': () => void
+                'error-callback': (errorCode?: string) => void
                 'expired-callback': () => void
                 theme: 'light' | 'dark' | 'auto'
+                retry?: 'auto' | 'never'
+                'retry-interval'?: number
             }) => string
             reset: (widgetId: string) => void
             remove: (widgetId: string) => void
@@ -73,20 +75,42 @@ export default function Signup() {
         if (!captchaLoaded || !turnstileRef.current || !TURNSTILE_SITE_KEY) return
         if (widgetIdRef.current) return // Already rendered
 
-        widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
-            sitekey: TURNSTILE_SITE_KEY,
-            callback: (token: string) => {
-                setCaptchaToken(token)
-            },
-            'error-callback': () => {
-                setError('CAPTCHA verification failed. Please try again.')
-                setCaptchaToken(null)
-            },
-            'expired-callback': () => {
-                setCaptchaToken(null)
-            },
-            theme: 'dark'
-        })
+        // Small delay to ensure DOM is fully ready
+        const timeout = setTimeout(() => {
+            try {
+                if (!turnstileRef.current || !window.turnstile) {
+                    console.warn('[YABT] Turnstile not ready, skipping render')
+                    return
+                }
+
+                console.log('[YABT] Rendering Turnstile widget')
+                widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+                    sitekey: TURNSTILE_SITE_KEY,
+                    callback: (token: string) => {
+                        console.log('[YABT] Turnstile verification successful')
+                        setCaptchaToken(token)
+                        setError('') // Clear any previous error
+                    },
+                    'error-callback': (errorCode?: string) => {
+                        console.error('[YABT] Turnstile error:', errorCode)
+                        // Don't show error immediately - could be transient
+                        // User can still try to refresh
+                        setCaptchaToken(null)
+                    },
+                    'expired-callback': () => {
+                        console.log('[YABT] Turnstile token expired')
+                        setCaptchaToken(null)
+                    },
+                    theme: 'dark',
+                    retry: 'auto',
+                    'retry-interval': 2000
+                })
+            } catch (err) {
+                console.error('[YABT] Failed to render Turnstile:', err)
+            }
+        }, 100)
+
+        return () => clearTimeout(timeout)
     }, [captchaLoaded])
 
     const handleSubmit = async (e: React.FormEvent) => {

@@ -21,6 +21,10 @@ services:
       - VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}
       - VITE_TURNSTILE_SITE_KEY=${VITE_TURNSTILE_SITE_KEY}
       - ORIGIN=${ORIGIN:-http://localhost:5177}
+      # Logging configuration
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_WEBHOOK_URL=${LOG_WEBHOOK_URL:-https://n8n.teej.sh/webhook/yabt-logs}
+      - LOG_REQUEST_BODY=${LOG_REQUEST_BODY:-true}
     env_file:
       - .env
     healthcheck:

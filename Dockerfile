@@ -32,22 +32,28 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Install serve for static file serving
-RUN npm install -g serve
+# Install express for custom server with logging
+RUN npm init -y && npm install express
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
+# Copy custom server
+COPY server.cjs ./
+
 # Set environment
 ENV NODE_ENV=production
 ENV PORT=5177
+ENV LOG_LEVEL=info
+ENV LOG_REQUEST_BODY=true
 
 # Expose port
 EXPOSE 5177
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:5177/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5177/health || exit 1
 
 # Start server
-CMD ["serve", "-s", "dist", "-l", "5177"]
+CMD ["node", "server.cjs"]
+
