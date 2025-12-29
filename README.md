@@ -1,35 +1,203 @@
-# YABT - Yet Another Budgeting Tool
+<div align="center">
 
-<p align="center">
-  <img src="src/assets/logo.png" alt="YABT Logo" width="200"/>
-</p>
+# 💰 YABT - Yet Another Budgeting Tool
 
-<p align="center">
-  <strong>AI-powered budgeting that doesn't suck.</strong><br>
-  Zero-based budgeting • AI Quick Add • Beautiful Analytics • 100% Free Forever
-</p>
+<img src="src/assets/logo.png" alt="YABT Logo" width="180"/>
+
+### AI-Powered Zero-Based Budgeting for Everyone
+
+[![GitHub Stars](https://img.shields.io/github/stars/bloodyburger/yabt?style=for-the-badge&logo=github&color=f4c542)](https://github.com/bloodyburger/yabt/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/bloodyburger/yabt?style=for-the-badge&logo=github&color=7c3aed)](https://github.com/bloodyburger/yabt/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/bloodyburger/yabt?style=for-the-badge&logo=github&color=ef4444)](https://github.com/bloodyburger/yabt/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/bloodyburger/yabt?style=for-the-badge&logo=github&color=22c55e)](https://github.com/bloodyburger/yabt/pulls)
+[![License](https://img.shields.io/github/license/bloodyburger/yabt?style=for-the-badge&color=blue)](LICENSE)
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com/)
+
+<br/>
+
+[🌐 Live Demo](https://yabt.app) • [📖 Documentation](#-self-hosting-guide) • [🐛 Report Bug](https://github.com/bloodyburger/yabt/issues) • [✨ Request Feature](https://github.com/bloodyburger/yabt/issues)
+
+</div>
+
+---
+
+## 📋 Table of Contents
+
+- [About](#-about)
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Screenshots](#-screenshots)
+- [Self-Hosting Guide](#-self-hosting-guide)
+- [Local Development](#-local-development)
+- [Project Structure](#-project-structure)
+- [Database Schema](#-database-schema)
+- [Roadmap](#-roadmap)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## 🎯 About
+
+**YABT** (Yet Another Budgeting Tool) is a modern, open-source personal finance application that implements the **zero-based budgeting** methodology. Unlike traditional budgeting apps, YABT ensures that every dollar (or rupee) has a purpose, helping you take complete control of your finances.
+
+### Why YABT?
+
+- 🆓 **100% Free Forever** - No subscriptions, no premium tiers, no hidden costs
+- 🤖 **AI-Powered** - Natural language transaction entry powered by Google Gemini
+- 🔒 **Privacy-Focused** - Self-host option available; your data stays yours
+- 🎨 **Beautiful UI** - Modern, responsive design with dark mode
+- 🚀 **Lightning Fast** - Built with Vite and React for optimal performance
+- 📱 **Mobile Ready** - Works seamlessly on all devices
+
+### What is Zero-Based Budgeting?
+
+Zero-based budgeting is a method where you allocate every unit of your income to specific categories until you have ₹0 left to assign. This approach ensures:
+
+1. **Complete Visibility** - Know exactly where every rupee goes
+2. **Intentional Spending** - Every expense is planned and purposeful
+3. **Goal Achievement** - Allocate money to savings goals as a "bill" to yourself
 
 ---
 
 ## ✨ Features
 
-- **🤖 AI-Powered Transactions** - Just type "Spent 500 at Starbucks from HDFC" and our AI handles the rest
-- **💰 Zero-Based Budgeting** - Give every rupee a job with the envelope budgeting method
-- **📊 Beautiful Reports** - Track spending patterns, monthly trends, and income vs expenses
-- **📈 Net Worth Tracking** - Monitor your assets and liabilities over time
-- **💳 Multi-Account Support** - Checking, Savings, Credit Cards, Cash, Investments
-- **🔄 Transfers** - Seamlessly move money between accounts
-- **🔔 Activity Log** - Track all changes and get notifications
-- **🌙 Dark Mode** - Easy on the eyes with a premium dark theme
-- **📱 Responsive** - Works great on desktop and mobile
+<table>
+<tr>
+<td width="50%">
+
+### 🤖 AI-Powered Quick Add
+Type naturally: *"Spent 500 at Starbucks from HDFC"* and the AI parses amount, payee, and account automatically.
+
+### 💰 Zero-Based Budgeting
+Envelope-style budgeting where every rupee has a job. Budget to zero and watch your savings grow.
+
+### 📊 Beautiful Analytics
+Interactive reports showing spending by category, monthly trends, and income vs expenses.
+
+### 📈 Net Worth Tracking
+Monitor your financial progress with assets, liabilities, and net worth trends over time.
+
+</td>
+<td width="50%">
+
+### 💳 Multi-Account Support
+Track checking, savings, credit cards, cash, and investment accounts in one place.
+
+### 🔄 Smart Transfers
+Move money between accounts with automatic balance updates on both ends.
+
+### 📝 Activity Log
+Complete audit trail of all changes with timestamps and descriptions.
+
+### 🔔 Notifications
+Stay informed about important events and budget alerts.
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🏗 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT (Browser)                                │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │                        React + TypeScript + Vite                         ││
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐  ││
+│  │  │    Pages     │  │  Components  │  │   Contexts   │  │    Hooks    │  ││
+│  │  │  - Budget    │  │  - Sidebar   │  │  - Auth      │  │  - useAuth  │  ││
+│  │  │  - Accounts  │  │  - Modals    │  │  - Budget    │  │  - useBudget│  ││
+│  │  │  - Reports   │  │  - Forms     │  │  - Settings  │  │             │  ││
+│  │  │  - NetWorth  │  │  - Cards     │  │              │  │             │  ││
+│  │  └──────────────┘  └──────────────┘  └──────────────┘  └─────────────┘  ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ HTTPS
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              SUPABASE (BaaS)                                 │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐  │
+│  │   PostgreSQL     │  │  Authentication   │  │    Row Level Security    │  │
+│  │   ───────────    │  │  ───────────────  │  │    ─────────────────     │  │
+│  │  • profiles      │  │  • Email/Password │  │  • User data isolation   │  │
+│  │  • accounts      │  │  • Session Mgmt   │  │  • Secure by default     │  │
+│  │  • transactions  │  │  • JWT Tokens     │  │  • Policy-based access   │  │
+│  │  • categories    │  │                   │  │                          │  │
+│  │  • budgets       │  │                   │  │                          │  │
+│  └──────────────────┘  └──────────────────┘  └──────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ API Call
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          GOOGLE GEMINI AI (Optional)                         │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │                    Natural Language Processing                           ││
+│  │        "Spent 500 at Starbucks from HDFC" → { amount: 500, ... }        ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+1. **User Interaction** → React components handle user input
+2. **State Management** → React Context provides app-wide state
+3. **API Calls** → Supabase client handles data operations
+4. **Authentication** → Supabase Auth manages user sessions
+5. **Data Security** → Row Level Security ensures data isolation
+6. **AI Processing** → Gemini API parses natural language (optional)
+
+---
 
 ## 🛠 Tech Stack
 
-- **Frontend**: React + TypeScript + Vite
-- **Styling**: Tailwind CSS
-- **Backend**: Supabase (PostgreSQL + Auth)
-- **AI**: Google Gemini API (for NLP transaction parsing)
-- **Containerization**: Docker
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Frontend** | React 18 | UI Components & Reactivity |
+| **Language** | TypeScript | Type Safety & Developer Experience |
+| **Build Tool** | Vite | Fast Development & Optimized Builds |
+| **Styling** | Tailwind CSS | Utility-First Styling |
+| **Icons** | Lucide React | Beautiful, Consistent Icons |
+| **Backend** | Supabase | Database, Auth, Real-time |
+| **Database** | PostgreSQL | Relational Data Storage |
+| **AI** | Google Gemini | Natural Language Processing |
+| **Containerization** | Docker | Consistent Deployment |
+| **Routing** | React Router | Client-Side Navigation |
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+<table>
+<tr>
+<td align="center"><strong>Landing Page</strong></td>
+<td align="center"><strong>Budget View</strong></td>
+</tr>
+<tr>
+<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Landing+Page" alt="Landing Page"/></td>
+<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Budget+View" alt="Budget View"/></td>
+</tr>
+<tr>
+<td align="center"><strong>Reports</strong></td>
+<td align="center"><strong>Net Worth</strong></td>
+</tr>
+<tr>
+<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Reports" alt="Reports"/></td>
+<td><img src="https://via.placeholder.com/400x250/1a1a2e/ffffff?text=Net+Worth" alt="Net Worth"/></td>
+</tr>
+</table>
+</div>
 
 ---
 
@@ -37,103 +205,124 @@
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- [Supabase Account](https://supabase.com/) (free tier works)
-- [Google AI Studio Account](https://aistudio.google.com/) (for Gemini API key)
+| Requirement | Minimum Version |
+|-------------|-----------------|
+| Docker | 20.10+ |
+| Docker Compose | 2.0+ |
+| Supabase Account | Free tier |
+| Gemini API Key | Optional |
 
-### Step 1: Clone the Repository
+### Quick Start
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/bloodyburger/yabt.git
+cd yabt
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# 3. Deploy with Docker
+docker compose up -d --build
+
+# 4. Access the app
+open http://localhost:5177
+```
+
+### Detailed Setup
+
+<details>
+<summary><strong>📦 Step 1: Clone Repository</strong></summary>
 
 ```bash
 git clone https://github.com/bloodyburger/yabt.git
 cd yabt
 ```
+</details>
 
-### Step 2: Set Up Supabase
+<details>
+<summary><strong>🗄 Step 2: Set Up Supabase</strong></summary>
 
-1. **Create a new Supabase project** at [supabase.com](https://supabase.com)
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Navigate to **SQL Editor** in your dashboard
+3. Run the following schema files in order:
+   - `supabase/schema.sql` (base tables)
+   - `supabase/schema_advanced.sql` (advanced features)
+4. Go to **Settings → API** and copy:
+   - Project URL
+   - Anon/Public Key
+</details>
 
-2. **Run the database schema**:
-   - Go to your Supabase Dashboard → SQL Editor
-   - Copy and run the contents of `supabase/schema.sql`
-   - Then run the contents of `supabase/schema_advanced.sql`
+<details>
+<summary><strong>🤖 Step 3: Get Gemini API Key (Optional)</strong></summary>
 
-3. **Get your credentials**:
-   - Go to Settings → API
-   - Copy the **Project URL** (e.g., `https://xxxxx.supabase.co`)
-   - Copy the **anon public key**
-
-### Step 3: Get Gemini API Key (Optional but Recommended)
-
-1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
+1. Visit [Google AI Studio](https://aistudio.google.com/apikey)
 2. Create a new API key
 3. Copy the key for the next step
 
-> **Note**: The AI Quick Add feature requires a Gemini API key. Without it, you can still use manual transaction entry.
+> Without this, manual transaction entry still works perfectly.
+</details>
 
-### Step 4: Configure Environment Variables
+<details>
+<summary><strong>⚙️ Step 4: Configure Environment</strong></summary>
 
 ```bash
-# Copy the example environment file
 cp .env.example .env
-
-# Edit .env with your values
-nano .env  # or use any text editor
 ```
 
-Update the following values in `.env`:
-
+Edit `.env` with your values:
 ```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-VITE_GEMINI_API_KEY=your-gemini-api-key
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_GEMINI_API_KEY=your-gemini-key  # Optional
 ```
+</details>
 
-### Step 5: Build and Run with Docker
+<details>
+<summary><strong>🐳 Step 5: Deploy with Docker</strong></summary>
 
 ```bash
-# Build and start the container
+# Build and start
 docker compose up -d --build
+
+# Check status
+docker compose ps
 
 # View logs
 docker compose logs -f
+
+# Stop
+docker compose down
 ```
+</details>
 
-The app will be available at **http://localhost:5177**
-
-### Step 6: Create Your Account
-
-1. Open http://localhost:5177
-2. Click "Get Started" or "Sign Up"
-3. Create an account with your email
-4. Start budgeting! 🎉
-
----
-
-## 🔧 Configuration Options
-
-### Docker Compose Environment Variables
+### Configuration Reference
 
 | Variable | Description | Required |
-|----------|-------------|----------|
-| `VITE_SUPABASE_URL` | Your Supabase project URL | ✅ Yes |
-| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon/public key | ✅ Yes |
-| `VITE_GEMINI_API_KEY` | Google Gemini API key for AI features | ❌ Optional |
+|----------|-------------|:--------:|
+| `VITE_SUPABASE_URL` | Supabase project URL | ✅ |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key | ✅ |
+| `VITE_GEMINI_API_KEY` | Google Gemini API key | ❌ |
 
-### Custom Port
+### Reverse Proxy (Production)
 
-To run on a different port, edit `docker-compose.yml`:
-
-```yaml
-ports:
-  - "8080:80"  # Change 8080 to your preferred port
-```
-
-### Reverse Proxy (Nginx Example)
+<details>
+<summary><strong>Nginx Configuration</strong></summary>
 
 ```nginx
 server {
     listen 80;
     server_name budget.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name budget.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/budget.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/budget.yourdomain.com/privkey.pem;
 
     location / {
         proxy_pass http://localhost:5177;
@@ -141,10 +330,14 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
 }
 ```
+</details>
 
 ---
 
@@ -154,6 +347,7 @@ server {
 
 - Node.js 18+
 - npm or pnpm
+- Supabase account
 
 ### Setup
 
@@ -161,22 +355,24 @@ server {
 # Install dependencies
 npm install
 
-# Copy environment file
+# Configure environment
 cp .env.example .env
-# Edit .env with your Supabase and Gemini credentials
+# Add your Supabase and Gemini credentials
 
 # Start development server
 npm run dev
 ```
 
-The dev server runs at **http://localhost:5173**
+Development server runs at **http://localhost:5173**
 
-### Building for Production
+### Available Scripts
 
-```bash
-npm run build
-npm run preview
-```
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
 
 ---
 
@@ -184,65 +380,153 @@ npm run preview
 
 ```
 yabt/
-├── src/
-│   ├── assets/         # Images and static assets
-│   ├── components/     # Reusable React components
-│   │   ├── common/     # Modals, inputs, shared components
-│   │   └── layout/     # Sidebar, Layout wrapper
-│   ├── contexts/       # React Context providers
-│   ├── lib/            # Utilities (Supabase client, formatters)
-│   └── pages/          # Route pages
-│       └── auth/       # Login/Signup pages
-├── supabase/           # Database schema files
-├── Dockerfile          # Docker build configuration
-├── docker-compose.yml  # Docker Compose configuration
-└── .env.example        # Example environment variables
+├── 📂 src/
+│   ├── 📂 assets/          # Static assets (logo, images)
+│   ├── 📂 components/      # Reusable React components
+│   │   ├── 📂 common/      # Shared components (modals, inputs)
+│   │   └── 📂 layout/      # Layout components (Sidebar, Header)
+│   ├── 📂 contexts/        # React Context providers
+│   │   ├── AuthContext     # Authentication state
+│   │   ├── BudgetContext   # Budget data & operations
+│   │   └── SettingsContext # User preferences
+│   ├── 📂 lib/             # Utilities & helpers
+│   │   ├── supabase.ts     # Supabase client
+│   │   ├── formatMoney.ts  # Currency formatting
+│   │   └── formatDate.ts   # Date formatting
+│   └── 📂 pages/           # Route pages
+│       ├── Budget.tsx      # Main budget view
+│       ├── Accounts.tsx    # Account management
+│       ├── Reports.tsx     # Analytics & reports
+│       ├── NetWorth.tsx    # Net worth tracking
+│       └── 📂 auth/        # Authentication pages
+├── 📂 supabase/            # Database schemas
+├── 📄 Dockerfile           # Docker configuration
+├── 📄 docker-compose.yml   # Docker Compose config
+├── 📄 .env.example         # Environment template
+└── 📄 package.json         # Dependencies
 ```
 
 ---
 
 ## 🗄 Database Schema
 
-YABT uses the following main tables in Supabase:
+```mermaid
+erDiagram
+    profiles ||--o{ accounts : owns
+    profiles ||--o{ categories : owns
+    profiles ||--o{ category_groups : owns
+    accounts ||--o{ transactions : contains
+    categories ||--o{ transactions : categorizes
+    categories ||--o{ monthly_budgets : has
+    category_groups ||--o{ categories : groups
 
-| Table | Description |
-|-------|-------------|
-| `profiles` | User profiles and settings |
-| `accounts` | Bank accounts, credit cards, cash |
-| `transactions` | All income and expense records |
+    profiles {
+        uuid id PK
+        string email
+        string currency
+        timestamp created_at
+    }
+    
+    accounts {
+        uuid id PK
+        uuid user_id FK
+        string name
+        string type
+        decimal balance
+    }
+    
+    transactions {
+        uuid id PK
+        uuid account_id FK
+        uuid category_id FK
+        decimal amount
+        string payee
+        date date
+    }
+    
+    categories {
+        uuid id PK
+        uuid group_id FK
+        string name
+        int sort_order
+    }
+```
+
+### Tables Overview
+
+| Table | Purpose |
+|-------|---------|
+| `profiles` | User accounts and preferences |
+| `accounts` | Financial accounts (bank, credit, cash) |
+| `transactions` | Income and expense records |
 | `categories` | Budget categories |
-| `category_groups` | Groups for organizing categories |
-| `monthly_budgets` | Monthly budget allocations per category |
-| `activity_log` | Audit trail of all changes |
-| `notifications` | User notifications |
+| `category_groups` | Category organization |
+| `monthly_budgets` | Monthly allocation per category |
+| `activity_log` | Audit trail |
+| `notifications` | User alerts |
 
-All tables have Row Level Security (RLS) enabled, ensuring users can only access their own data.
+---
+
+## 🗺 Roadmap
+
+- [x] Core budgeting features
+- [x] AI-powered transaction entry
+- [x] Reports & Analytics
+- [x] Net Worth tracking
+- [x] Docker support
+- [ ] 📱 iOS App
+- [ ] 🤖 Android App
+- [ ] 🏦 Bank sync integration
+- [ ] 📊 Advanced reports
+- [ ] 🎯 Savings goals
+- [ ] 👥 Shared budgets
+- [ ] 📤 Data export (CSV, PDF)
+- [ ] 🌍 Multi-language support
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are what make the open-source community amazing! Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+### Contributors
+
+<a href="https://github.com/bloodyburger/yabt/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=bloodyburger/yabt" />
+</a>
 
 ---
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
 
-## 💖 Support
+## 💖 Support the Project
 
-YABT is 100% free and always will be. If you find it useful, consider:
+YABT is **100% free** and always will be. If you find it useful:
 
-- ⭐ Starring this repo
-- 🐛 Reporting bugs
-- 💡 Suggesting features
-- ☕ [Buying us a coffee](https://yabt.app) (coming soon)
+<div align="center">
+
+[![Star on GitHub](https://img.shields.io/badge/⭐_Star_on_GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/bloodyburger/yabt)
+[![Report Bug](https://img.shields.io/badge/🐛_Report_Bug-ef4444?style=for-the-badge)](https://github.com/bloodyburger/yabt/issues)
+[![Request Feature](https://img.shields.io/badge/✨_Request_Feature-22c55e?style=for-the-badge)](https://github.com/bloodyburger/yabt/issues)
+
+</div>
 
 ---
 
-<p align="center">
-  Made with ❤️ for people who hate complicated budgeting apps
-</p>
+<div align="center">
+
+**Made with ❤️ for people who hate complicated budgeting apps**
+
+[⬆ Back to Top](#-yabt---yet-another-budgeting-tool)
+
+</div>
