@@ -58,6 +58,12 @@ export default function Budget() {
 
         const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
 
+        // Get first and last day of month for transaction query
+        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
+        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
+        const firstDayStr = firstDay.toISOString().split('T')[0]
+        const lastDayStr = lastDay.toISOString().split('T')[0]
+
         // Fetch category groups with categories
         const { data: groups } = await supabase
             .from('category_groups')
@@ -70,14 +76,44 @@ export default function Budget() {
             setExpandedGroups(new Set(groups.map(g => g.id)))
         }
 
+        // Get all category IDs for this budget
+        const categoryIds = groups?.flatMap(g => g.categories?.map(c => c.id) || []) || []
+
         // Fetch monthly budgets
         const { data: budgets } = await supabase
             .from('monthly_budgets')
             .select('category_id, budgeted, activity')
             .eq('month', monthStr)
-            .in('category_id', groups?.flatMap(g => g.categories?.map(c => c.id) || []) || [])
+            .in('category_id', categoryIds)
 
-        setMonthlyBudgets(budgets || [])
+        // Fetch transactions for current month to calculate actual activity
+        // Activity = sum of all transactions for each category in the month
+        const { data: transactions } = await supabase
+            .from('transactions')
+            .select('category_id, amount')
+            .in('category_id', categoryIds)
+            .gte('date', firstDayStr)
+            .lte('date', lastDayStr)
+
+        // Calculate activity per category from transactions
+        const activityByCategory: Record<string, number> = {}
+        transactions?.forEach(t => {
+            if (t.category_id) {
+                activityByCategory[t.category_id] = (activityByCategory[t.category_id] || 0) + Number(t.amount)
+            }
+        })
+
+        // Merge budgets with calculated activity
+        const mergedBudgets = categoryIds.map(catId => {
+            const existing = budgets?.find(b => b.category_id === catId)
+            return {
+                category_id: catId,
+                budgeted: existing?.budgeted || 0,
+                activity: activityByCategory[catId] || 0
+            }
+        })
+
+        setMonthlyBudgets(mergedBudgets)
 
         // Calculate ready to assign
         const { data: accounts } = await supabase
@@ -87,7 +123,7 @@ export default function Budget() {
             .eq('is_on_budget', true)
 
         const totalBalance = accounts?.reduce((sum, a) => sum + Number(a.balance), 0) || 0
-        const totalBudgeted = budgets?.reduce((sum, b) => sum + Number(b.budgeted), 0) || 0
+        const totalBudgeted = mergedBudgets.reduce((sum, b) => sum + Number(b.budgeted), 0) || 0
         setReadyToAssign(totalBalance - totalBudgeted)
 
         setLoading(false)
