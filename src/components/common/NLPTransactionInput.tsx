@@ -33,7 +33,7 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: 'llama3.2',
+                        model: 'gpt-oss:20b-cloud',
                         messages: [{
                             role: 'user',
                             content: `Parse this text into a financial transaction. Respond ONLY with valid JSON, no markdown.
