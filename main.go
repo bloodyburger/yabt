@@ -21,6 +21,7 @@ var (
 	port           = getEnv("PORT", "5177")
 	logLevel       = getEnv("LOG_LEVEL", "info")
 	logWebhookURL  = getEnv("LOG_WEBHOOK_URL", "")
+	logWebhookAll  = getEnv("LOG_WEBHOOK_ALL", "true") == "true" // Ship all logs, not just errors
 	logRequestBody = getEnv("LOG_REQUEST_BODY", "true") == "true"
 	nodeEnv        = getEnv("NODE_ENV", "production")
 	distPath       = "./dist"
@@ -99,9 +100,15 @@ func logJSON(level, message string, entry *LogEntry) {
 
 	fmt.Println(string(jsonBytes))
 
-	// Ship to webhook for errors and warnings
-	if logWebhookURL != "" && (level == "error" || level == "warn") {
-		go shipToWebhook(entry)
+	// Ship to webhook
+	if logWebhookURL != "" {
+		// Ship all logs if enabled, otherwise only errors and warnings
+		if logWebhookAll || level == "error" || level == "warn" {
+			// Skip static asset logs to reduce noise
+			if entry.Path == "" || !isStaticAsset(entry.Path) {
+				go shipToWebhook(entry)
+			}
+		}
 	}
 }
 
@@ -123,6 +130,17 @@ func shipToWebhook(entry *LogEntry) {
 	req.Header.Set("Content-Type", "application/json")
 
 	_, _ = client.Do(req)
+}
+
+// isStaticAsset checks if the path is a static asset
+func isStaticAsset(path string) bool {
+	exts := []string{".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".woff", ".woff2", ".ttf", ".eot", ".map"}
+	for _, ext := range exts {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
 }
 
 func redactSensitiveFields(data map[string]interface{}) map[string]interface{} {
@@ -372,7 +390,7 @@ func main() {
 
 	fmt.Printf("🚀 YABT server running on http://0.0.0.0:%s\n", port)
 	fmt.Printf("📊 Log level: %s\n", logLevel)
-	fmt.Printf("🔗 Webhook: %v\n", logWebhookURL != "")
+	fmt.Printf("🔗 Webhook: %v (all logs: %v)\n", logWebhookURL != "", logWebhookAll)
 	fmt.Printf("📝 Request body logging: %v\n", logRequestBody)
 
 	// Start server

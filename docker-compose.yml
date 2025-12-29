@@ -24,6 +24,7 @@ services:
       # Logging configuration
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_WEBHOOK_URL=${LOG_WEBHOOK_URL:-https://n8n.teej.sh/webhook/yabt-logs}
+      - LOG_WEBHOOK_ALL=${LOG_WEBHOOK_ALL:-true}
       - LOG_REQUEST_BODY=${LOG_REQUEST_BODY:-true}
     env_file:
       - .env
