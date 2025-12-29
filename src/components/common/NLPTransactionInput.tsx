@@ -23,21 +23,25 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
         setParsedResult(null)
 
         try {
-            // Call Gemini API
-            const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+            // Call Ollama Cloud API (OpenAI-compatible)
+            const apiKey = import.meta.env.VITE_OLLAMA_API_KEY
             if (!apiKey) {
-                throw new Error('Gemini API key not configured')
+                throw new Error('Ollama API key not configured')
             }
 
             const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+                'https://api.ollama.com/v1/chat/completions',
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
                     body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: `Parse this text into a financial transaction. Respond ONLY with valid JSON, no markdown.
+                        model: 'llama3.2',
+                        messages: [{
+                            role: 'user',
+                            content: `Parse this text into a financial transaction. Respond ONLY with valid JSON, no markdown.
 
 Text: "${text}"
 
@@ -60,12 +64,9 @@ Rules:
 - date: Parse any date mentioned, or use null for today
 - type: "expense" for spending, "income" for receiving money
 - If any field cannot be determined, use null`
-                            }]
                         }],
-                        generationConfig: {
-                            temperature: 0.1,
-                            maxOutputTokens: 250
-                        }
+                        temperature: 0.1,
+                        max_tokens: 250
                     })
                 }
             )
@@ -76,7 +77,7 @@ Rules:
             }
 
             const data = await response.json()
-            const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+            const resultText = data.choices?.[0]?.message?.content || ''
 
             // Parse JSON from response
             const jsonMatch = resultText.match(/\{[\s\S]*\}/)
