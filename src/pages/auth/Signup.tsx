@@ -5,7 +5,14 @@ import { useAuth } from '@/contexts/AuthContext'
 import logo from '@/assets/logo.png'
 
 // Cloudflare Turnstile Site Key (public - safe to expose)
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || ''
+// Ensure it's a string - Vite can sometimes pass objects
+const rawSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY
+const TURNSTILE_SITE_KEY = typeof rawSiteKey === 'string' ? rawSiteKey : ''
+
+// Debug log for troubleshooting
+if (rawSiteKey && typeof rawSiteKey !== 'string') {
+    console.error('[YABT] VITE_TURNSTILE_SITE_KEY is not a string:', typeof rawSiteKey, rawSiteKey)
+}
 
 declare global {
     interface Window {

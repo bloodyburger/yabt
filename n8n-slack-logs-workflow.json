@@ -18,7 +18,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format log for Slack\nconst log = $input.first().json;\n\n// Color based on log level\nconst colors = {\n  error: '#e74c3c',\n  warn: '#f39c12',\n  info: '#3498db',\n  debug: '#95a5a6'\n};\n\nconst emojis = {\n  error: '🚨',\n  warn: '⚠️',\n  info: 'ℹ️',\n  debug: '🔍'\n};\n\nconst level = log.level || 'info';\nconst color = colors[level] || colors.info;\nconst emoji = emojis[level] || emojis.info;\n\n// Build Slack message blocks\nconst blocks = [\n  {\n    type: 'header',\n    text: {\n      type: 'plain_text',\n      text: `${emoji} YABT ${level.toUpperCase()} Log`,\n      emoji: true\n    }\n  },\n  {\n    type: 'divider'\n  },\n  {\n    type: 'section',\n    fields: [\n      {\n        type: 'mrkdwn',\n        text: `*Message:*\\n${log.message || 'No message'}`\n      },\n      {\n        type: 'mrkdwn',\n        text: `*Timestamp:*\\n${log.timestamp || new Date().toISOString()}`\n      }\n    ]\n  }\n];\n\n// Add request details if present\nif (log.requestId || log.method || log.path) {\n  blocks.push({\n    type: 'section',\n    fields: [\n      {\n        type: 'mrkdwn',\n        text: `*Request ID:*\\n\\`${log.requestId || 'N/A'}\\``\n      },\n      {\n        type: 'mrkdwn',\n        text: `*Endpoint:*\\n\\`${log.method || ''} ${log.path || ''}\\``\n      }\n    ]\n  });\n}\n\n// Add status code and response time if present\nif (log.statusCode || log.responseTime) {\n  blocks.push({\n    type: 'section',\n    fields: [\n      {\n        type: 'mrkdwn',\n        text: `*Status:*\\n${log.statusCode || 'N/A'}`\n      },\n      {\n        type: 'mrkdwn',\n        text: `*Response Time:*\\n${log.responseTime || 'N/A'}`\n      }\n    ]\n  });\n}\n\n// Add IP and User Agent if present\nif (log.ip || log.userAgent) {\n  blocks.push({\n    type: 'section',\n    fields: [\n      {\n        type: 'mrkdwn',\n        text: `*IP:*\\n${log.ip || 'N/A'}`\n      },\n      {\n        type: 'mrkdwn',\n        text: `*User Agent:*\\n${(log.userAgent || 'N/A').substring(0, 100)}${log.userAgent && log.userAgent.length > 100 ? '...' : ''}`\n      }\n    ]\n  });\n}\n\n// Add error details if present\nif (log.error || log.stack) {\n  blocks.push({\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `*Error Details:*\\n\\`\\`\\`${log.error || ''}\\n${log.stack ? log.stack.substring(0, 500) : ''}\\`\\`\\``\n    }\n  });\n}\n\n// Add request/response body if present (truncated)\nif (log.body) {\n  const bodyStr = typeof log.body === 'string' ? log.body : JSON.stringify(log.body, null, 2);\n  blocks.push({\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `*Body:*\\n\\`\\`\\`${bodyStr.substring(0, 500)}${bodyStr.length > 500 ? '...' : ''}\\`\\`\\``\n    }\n  });\n}\n\n// Add divider before context\nblocks.push({ type: 'divider' });\n\n// Add environment info\nblocks.push({\n  type: 'context',\n  elements: [\n    {\n      type: 'mrkdwn',\n      text: `Service: *${log.service || 'yabt'}* | Environment: *${log.environment || 'production'}*`\n    }\n  ]\n});\n\nreturn {\n  json: {\n    channel: '#yabt-logs',\n    blocks: blocks,\n    text: `${emoji} YABT ${level.toUpperCase()}: ${log.message || 'Log event'}`\n  }\n};"
+        "jsCode": "// Format log for Slack - simplified version\nconst log = $input.first().json;\n\n// Emojis based on log level\nconst emojis = {\n  error: '🚨',\n  warn: '⚠️',\n  info: 'ℹ️',\n  debug: '🔍'\n};\n\nconst level = log.level || 'info';\nconst emoji = emojis[level] || emojis.info;\n\n// Build a simple text message with mrkdwn formatting\nlet text = `${emoji} *YABT ${level.toUpperCase()}*\\n`;\ntext += `*Message:* ${log.message || 'No message'}\\n`;\ntext += `*Time:* ${log.timestamp || new Date().toISOString()}\\n`;\n\nif (log.requestId) {\n  text += `*Request ID:* \\`${log.requestId}\\`\\n`;\n}\n\nif (log.method && log.path) {\n  text += `*Endpoint:* \\`${log.method} ${log.path}\\`\\n`;\n}\n\nif (log.statusCode) {\n  text += `*Status:* ${log.statusCode}\\n`;\n}\n\nif (log.responseTime) {\n  text += `*Response Time:* ${log.responseTime}\\n`;\n}\n\nif (log.ip) {\n  text += `*IP:* ${log.ip}\\n`;\n}\n\nif (log.body) {\n  const bodyStr = typeof log.body === 'string' ? log.body : JSON.stringify(log.body);\n  if (bodyStr.length < 200) {\n    text += `*Body:* \\`\\`\\`${bodyStr}\\`\\`\\`\\n`;\n  }\n}\n\ntext += `\\n_Service: ${log.service || 'yabt'} | Env: ${log.environment || 'production'}_`;\n\nreturn {\n  json: {\n    channel: '#yabt-logs',\n    text: text\n  }\n};"
       },
       "id": "code-node",
       "name": "Format for Slack",
@@ -35,8 +35,7 @@
           "mode": "name",
           "value": "={{ $json.channel }}"
         },
-        "messageType": "block",
-        "blocksUi": "={{ JSON.stringify($json.blocks) }}",
+        "messageType": "text",
         "text": "={{ $json.text }}",
         "otherOptions": {}
       },
@@ -124,6 +123,6 @@
   "staticData": null,
   "tags": [],
   "triggerCount": 0,
-  "updatedAt": "2025-12-29T09:28:00.000Z",
-  "versionId": "2"
+  "updatedAt": "2025-12-29T09:42:00.000Z",
+  "versionId": "3"
 }
