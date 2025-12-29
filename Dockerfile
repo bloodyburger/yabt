@@ -1,5 +1,5 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Build stage - Frontend
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
@@ -24,22 +24,39 @@ ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
 ENV VITE_TURNSTILE_SITE_KEY=$VITE_TURNSTILE_SITE_KEY
 
-# Build the app
+# Build the frontend
 RUN npm run build
 
-# Production stage
-FROM node:20-alpine AS production
+# Build stage - Go backend
+FROM golang:1.21-alpine AS backend-builder
 
 WORKDIR /app
 
-# Install express for custom server with logging
-RUN npm init -y && npm install express
+# Copy Go module files
+COPY go.mod go.sum ./
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# Download dependencies
+RUN go mod download
 
-# Copy custom server
-COPY server.cjs ./
+# Copy Go source
+COPY main.go ./
+
+# Build the Go binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server .
+
+# Production stage
+FROM alpine:3.19 AS production
+
+WORKDIR /app
+
+# Install ca-certificates for HTTPS requests (webhook)
+RUN apk --no-cache add ca-certificates
+
+# Copy Go binary from backend builder
+COPY --from=backend-builder /app/server ./
+
+# Copy built frontend from frontend builder
+COPY --from=frontend-builder /app/dist ./dist
 
 # Set environment
 ENV NODE_ENV=production
@@ -55,5 +72,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:5177/health || exit 1
 
 # Start server
-CMD ["node", "server.cjs"]
-
+CMD ["./server"]
