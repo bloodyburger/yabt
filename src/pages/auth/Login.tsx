@@ -1,8 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import logo from '@/assets/logo.png'
+
+// Get Turnstile site key from environment
+const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '')
+
+// Turnstile type declarations
+declare global {
+    interface Window {
+        turnstile?: {
+            render: (element: string | HTMLElement, options: {
+                sitekey: string
+                callback: (token: string) => void
+                'error-callback'?: (errorCode?: string) => void
+                'expired-callback'?: () => void
+                theme?: 'light' | 'dark' | 'auto'
+                retry?: 'auto' | 'never'
+                'retry-interval'?: number
+            }) => string
+            reset: (widgetId: string) => void
+            remove: (widgetId: string) => void
+        }
+    }
+}
 
 export default function Login() {
     const navigate = useNavigate()
@@ -13,18 +35,120 @@ export default function Login() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 
+    // CAPTCHA state
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+    const [captchaLoaded, setCaptchaLoaded] = useState(false)
+    const captchaRef = useRef<HTMLDivElement>(null)
+    const widgetIdRef = useRef<string | null>(null)
+
+    // Load Turnstile script
+    useEffect(() => {
+        if (!TURNSTILE_SITE_KEY) {
+            console.warn('[YABT] VITE_TURNSTILE_SITE_KEY not set, CAPTCHA disabled')
+            setCaptchaLoaded(true) // Allow form submission without CAPTCHA
+            setCaptchaToken('disabled')
+            return
+        }
+
+        // Check if already loaded
+        if (window.turnstile) {
+            setCaptchaLoaded(true)
+            return
+        }
+
+        const script = document.createElement('script')
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+        script.async = true
+        script.onload = () => {
+            setCaptchaLoaded(true)
+        }
+        script.onerror = () => {
+            console.error('[YABT] Failed to load Turnstile script')
+            setCaptchaLoaded(true)
+            setCaptchaToken('disabled')
+        }
+        document.body.appendChild(script)
+
+        return () => {
+            // Cleanup widget on unmount
+            if (widgetIdRef.current && window.turnstile) {
+                window.turnstile.remove(widgetIdRef.current)
+            }
+        }
+    }, [])
+
+    // Render Turnstile widget
+    useEffect(() => {
+        if (!captchaLoaded || !captchaRef.current || !window.turnstile || !TURNSTILE_SITE_KEY) {
+            return
+        }
+
+        // Don't re-render if already rendered
+        if (widgetIdRef.current) {
+            return
+        }
+
+        const timeout = setTimeout(() => {
+            if (!captchaRef.current || !window.turnstile) return
+
+            try {
+                widgetIdRef.current = window.turnstile.render(captchaRef.current, {
+                    sitekey: TURNSTILE_SITE_KEY,
+                    callback: (token: string) => {
+                        setCaptchaToken(token)
+                    },
+                    'error-callback': (errorCode?: string) => {
+                        console.error('[YABT] Turnstile error:', errorCode)
+                        setCaptchaToken(null)
+                    },
+                    'expired-callback': () => {
+                        setCaptchaToken(null)
+                    },
+                    theme: 'dark',
+                    retry: 'auto',
+                    'retry-interval': 2000
+                })
+            } catch (err) {
+                console.error('[YABT] Failed to render Turnstile:', err)
+            }
+        }, 100)
+
+        return () => clearTimeout(timeout)
+    }, [captchaLoaded])
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+
+        // Validate captcha (skip if disabled)
+        if (!captchaToken) {
+            setError('Please complete the CAPTCHA verification.')
+            return
+        }
+
         setLoading(true)
         setError('')
 
-        const { error } = await signIn(email, password)
+        // Pass captcha token (or undefined if disabled)
+        const tokenToSend = captchaToken === 'disabled' ? undefined : captchaToken
+        const { error } = await signIn(email, password, tokenToSend)
 
         if (error) {
             setError(error.message)
             setLoading(false)
+            // Reset captcha on error
+            if (widgetIdRef.current && window.turnstile) {
+                window.turnstile.reset(widgetIdRef.current)
+                setCaptchaToken(null)
+            }
         } else {
             navigate('/app/budget')
+        }
+    }
+
+    const resetCaptcha = () => {
+        if (widgetIdRef.current && window.turnstile) {
+            window.turnstile.reset(widgetIdRef.current)
+            setCaptchaToken(null)
         }
     }
 
@@ -79,9 +203,29 @@ export default function Login() {
                             />
                         </div>
 
+                        {/* CAPTCHA Widget */}
+                        {TURNSTILE_SITE_KEY && (
+                            <div className="space-y-2">
+                                <div
+                                    ref={captchaRef}
+                                    className="flex justify-center"
+                                />
+                                {captchaToken && captchaToken !== 'disabled' && (
+                                    <button
+                                        type="button"
+                                        onClick={resetCaptcha}
+                                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-300 mx-auto"
+                                    >
+                                        <RefreshCw className="w-3 h-3" />
+                                        Reset CAPTCHA
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || (!captchaToken && TURNSTILE_SITE_KEY !== '')}
                             className="w-full py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white font-medium rounded-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {loading ? (
