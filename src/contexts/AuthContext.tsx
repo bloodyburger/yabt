@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
+import { identifyUser, resetUser } from '@/lib/posthog'
 
 interface AuthContextType {
     user: User | null
@@ -32,6 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(session)
             setUser(session?.user ?? null)
             setLoading(false)
+
+            // Identify or reset user in PostHog
+            if (session?.user) {
+                identifyUser(session.user.id, session.user.email)
+            } else {
+                resetUser()
+            }
         })
 
         return () => subscription.unsubscribe()

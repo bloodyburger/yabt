@@ -1,7 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { logger } from '@/lib/logger'
+import { initPostHog, capturePageView } from '@/lib/posthog'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+
+// Initialize PostHog analytics
+initPostHog()
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { BudgetProvider } from '@/contexts/BudgetContext'
 import Layout from '@/components/layout/Layout'
@@ -54,6 +58,8 @@ function PageLogger() {
                 path: location.pathname,
                 search: location.search
             })
+            // Track page view in PostHog
+            capturePageView(location.pathname)
         }
     }, [location.pathname, user])
 
