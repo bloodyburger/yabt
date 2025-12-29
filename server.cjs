@@ -205,7 +205,13 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // SPA fallback - serve index.html for any non-file requests
-app.get('*', (req, res) => {
+// Using app.use instead of app.get('*') for Express 5.x compatibility
+app.use((req, res, next) => {
+    // Skip if it's an API route or has a file extension
+    if (req.path.startsWith('/api/') || req.path.startsWith('/health') || req.path.match(/\.\w+$/)) {
+        return next();
+    }
+    
     const indexPath = path.join(distPath, 'index.html');
     if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
