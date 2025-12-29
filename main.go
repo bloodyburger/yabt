@@ -50,6 +50,7 @@ type LogEntry struct {
 	ResponseTime string      `json:"responseTime,omitempty"`
 	IP           string      `json:"ip,omitempty"`
 	UserAgent    string      `json:"userAgent,omitempty"`
+	Referer      string      `json:"referer,omitempty"`
 	Body         interface{} `json:"body,omitempty"`
 	Error        string      `json:"error,omitempty"`
 }
@@ -213,12 +214,19 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Create request log entry
+		// Build full path with query string
+		fullPath := r.URL.Path
+		if r.URL.RawQuery != "" {
+			fullPath = fullPath + "?" + r.URL.RawQuery
+		}
+
 		reqEntry := &LogEntry{
 			RequestID: requestID,
 			Method:    r.Method,
-			Path:      r.URL.Path,
+			Path:      fullPath,
 			IP:        ip,
 			UserAgent: r.UserAgent(),
+			Referer:   r.Header.Get("Referer"),
 		}
 
 		// Log request body if enabled
@@ -234,7 +242,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		logJSON("info", fmt.Sprintf("→ %s %s", r.Method, r.URL.Path), reqEntry)
+		logJSON("info", fmt.Sprintf("→ %s %s", r.Method, fullPath), reqEntry)
 
 		// Wrap response writer
 		rw := newResponseWriter(w)
@@ -249,7 +257,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		respEntry := &LogEntry{
 			RequestID:    requestID,
 			Method:       r.Method,
-			Path:         r.URL.Path,
+			Path:         fullPath,
 			StatusCode:   rw.statusCode,
 			ResponseTime: responseTime.String(),
 			IP:           ip,
@@ -274,7 +282,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			level = "warn"
 		}
 
-		logJSON(level, fmt.Sprintf("← %d %s %s (%s)", rw.statusCode, r.Method, r.URL.Path, responseTime), respEntry)
+		logJSON(level, fmt.Sprintf("← %d %s %s (%s)", rw.statusCode, r.Method, fullPath, responseTime), respEntry)
 	})
 }
 
