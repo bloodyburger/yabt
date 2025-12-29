@@ -6,8 +6,8 @@ interface AuthContextType {
     user: User | null
     session: Session | null
     loading: boolean
-    signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-    signUp: (email: string, password: string) => Promise<{ error: Error | null }>
+    signIn: (email: string, password: string, captchaToken?: string) => Promise<{ error: Error | null }>
+    signUp: (email: string, password: string, captchaToken?: string) => Promise<{ error: Error | null }>
     signOut: () => Promise<void>
 }
 
@@ -36,13 +36,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => subscription.unsubscribe()
     }, [])
 
-    const signIn = async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const signIn = async (email: string, password: string, captchaToken?: string) => {
+        const options: { email: string; password: string; options?: { captchaToken?: string } } = { email, password }
+        if (captchaToken) {
+            options.options = { captchaToken }
+        }
+        const { error } = await supabase.auth.signInWithPassword(options)
         return { error }
     }
 
-    const signUp = async (email: string, password: string) => {
-        const { error } = await supabase.auth.signUp({ email, password })
+    const signUp = async (email: string, password: string, captchaToken?: string) => {
+        const options: { email: string; password: string; options?: { captchaToken?: string } } = { email, password }
+        if (captchaToken) {
+            options.options = { captchaToken }
+        }
+        const { error } = await supabase.auth.signUp(options)
         return { error }
     }
 

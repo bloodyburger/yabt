@@ -132,7 +132,7 @@ export default function Signup() {
         setLoading(true)
         setError('')
 
-        const { error } = await signUp(email, password)
+        const { error } = await signUp(email, password, captchaToken)
 
         if (error) {
             setError(error.message)
