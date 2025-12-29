@@ -35,8 +35,8 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - yabt-network
+      - charkoal
 
 networks:
-  yabt-network:
-    driver: bridge
+  charkoal:
+    external: true
