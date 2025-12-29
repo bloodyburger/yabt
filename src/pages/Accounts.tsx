@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, CreditCard, Wallet, Building, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, logger } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { formatMoney, getMoneyColorClass } from '@/lib/formatMoney'
@@ -23,19 +23,39 @@ export default function Accounts() {
     const [showAddModal, setShowAddModal] = useState(false)
 
     useEffect(() => {
-        if (!currentBudget) return
+        if (!currentBudget) {
+            logger.warn('Accounts: No currentBudget available')
+            return
+        }
+        logger.info('Accounts: Budget changed, fetching accounts', { budgetId: currentBudget.id })
         fetchAccounts()
     }, [currentBudget])
 
     const fetchAccounts = async () => {
-        if (!currentBudget) return
+        if (!currentBudget) {
+            logger.warn('Accounts: fetchAccounts called without currentBudget')
+            return
+        }
 
-        const { data } = await supabase
+        logger.info('Accounts: Fetching accounts for budget', { budgetId: currentBudget.id })
+
+        const { data, error, count } = await supabase
             .from('accounts')
-            .select('*')
+            .select('*', { count: 'exact' })
             .eq('budget_id', currentBudget.id)
             .eq('closed', false)
             .order('sort_order')
+
+        logger.table('accounts', 'SELECT', { budget_id: currentBudget.id, closed: false }, { data, error, count: count ?? undefined })
+
+        if (error) {
+            logger.error('Failed to fetch accounts', error)
+        }
+
+        logger.info('Accounts: Loaded accounts', {
+            count: data?.length ?? 0,
+            totalBalance: data?.reduce((sum, a) => sum + a.balance, 0) ?? 0
+        })
 
         setAccounts(data || [])
         setLoading(false)

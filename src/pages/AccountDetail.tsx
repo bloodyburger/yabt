@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Check, Search, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, logger } from '@/lib/supabase'
 import { useSettings } from '@/contexts/SettingsContext'
 import { formatMoney } from '@/lib/formatMoney'
 import { useTransactionModal } from '@/contexts/TransactionModalContext'
@@ -44,22 +44,48 @@ export default function AccountDetail() {
     }, [id])
 
     const fetchData = async () => {
-        if (!id) return
+        if (!id) {
+            logger.warn('AccountDetail: No account ID provided')
+            return
+        }
 
-        const { data: accountData } = await supabase
+        logger.info('AccountDetail: Fetching data for account', { accountId: id })
+
+        // Fetch account details
+        const { data: accountData, error: accountError } = await supabase
             .from('accounts')
             .select('id, name, balance')
             .eq('id', id)
             .single()
 
+        logger.table('accounts', 'SELECT', { id }, { data: accountData, error: accountError })
+
+        if (accountError) {
+            logger.error('Failed to fetch account', accountError)
+        }
         setAccount(accountData)
 
-        const { data: txData } = await supabase
+        // Fetch transactions
+        logger.info('AccountDetail: Fetching transactions for account', { accountId: id })
+
+        const { data: txData, error: txError, count } = await supabase
             .from('transactions')
-            .select('id, account_id, category_id, payee_id, transfer_account_id, date, amount, memo, cleared, payee:payees(name), category:categories(name)')
+            .select('id, account_id, category_id, payee_id, transfer_account_id, date, amount, memo, cleared, payee:payees(name), category:categories(name)', { count: 'exact' })
             .eq('account_id', id)
             .order('date', { ascending: false })
             .order('created_at', { ascending: false })
+
+        logger.table('transactions', 'SELECT', { account_id: id }, { data: txData, error: txError, count: count ?? undefined })
+
+        if (txError) {
+            logger.error('Failed to fetch transactions', txError)
+        }
+
+        logger.info('AccountDetail: Loaded transactions', {
+            count: txData?.length ?? 0,
+            accountId: id,
+            firstTransaction: txData?.[0] ?? null
+        })
 
         setTransactions(txData || [])
         setLoading(false)
