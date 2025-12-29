@@ -23,19 +23,14 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
         setParsedResult(null)
 
         try {
-            // Call Ollama Cloud API
-            const apiKey = import.meta.env.VITE_OLLAMA_API_KEY
-            if (!apiKey) {
-                throw new Error('Ollama API key not configured')
-            }
-
+            // Call our backend proxy (which forwards to Ollama Cloud API)
+            // The backend handles the API key to avoid CORS issues
             const response = await fetch(
-                'https://ollama.com/api/chat',
+                '/api/ai/chat',
                 {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         model: 'llama3.2',

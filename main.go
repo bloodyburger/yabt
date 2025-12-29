@@ -24,6 +24,7 @@ var (
 	logWebhookAll  = getEnv("LOG_WEBHOOK_ALL", "true") == "true" // Ship all logs, not just errors
 	logRequestBody = getEnv("LOG_REQUEST_BODY", "true") == "true"
 	nodeEnv        = getEnv("NODE_ENV", "production")
+	ollamaAPIKey   = getEnv("OLLAMA_API_KEY", "")
 	distPath       = "./dist"
 )
 
@@ -369,6 +370,61 @@ func spaHandler(distPath string) http.Handler {
 	})
 }
 
+// Ollama AI Proxy - forwards requests to Ollama Cloud API to bypass CORS
+func ollamaProxyHandler(w http.ResponseWriter, r *http.Request) {
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Check if API key is configured
+	if ollamaAPIKey == "" {
+		http.Error(w, "Ollama API key not configured", http.StatusInternalServerError)
+		return
+	}
+
+	// Read request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// Forward request to Ollama Cloud API
+	req, err := http.NewRequest("POST", "https://ollama.com/api/chat", bytes.NewBuffer(body))
+	if err != nil {
+		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ollamaAPIKey)
+
+	// Make request
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		logJSON("error", "Ollama API request failed", &LogEntry{Error: err.Error()})
+		http.Error(w, "Failed to contact Ollama API: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Failed to read Ollama response", http.StatusInternalServerError)
+		return
+	}
+
+	// Set response headers
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	w.Write(respBody)
+}
+
 func main() {
 	// Create router
 	mux := http.NewServeMux()
@@ -376,6 +432,7 @@ func main() {
 	// API routes
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/api/log", logAPIHandler)
+	mux.HandleFunc("/api/ai/chat", ollamaProxyHandler)
 
 	// Static files and SPA fallback
 	mux.Handle("/", spaHandler(distPath))
