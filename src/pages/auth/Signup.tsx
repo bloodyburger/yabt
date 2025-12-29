@@ -1,8 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Shield } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import logo from '@/assets/logo.png'
+
+// Cloudflare Turnstile Site Key (public - safe to expose)
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || ''
+
+declare global {
+    interface Window {
+        turnstile: {
+            render: (container: HTMLElement, options: {
+                sitekey: string
+                callback: (token: string) => void
+                'error-callback': () => void
+                'expired-callback': () => void
+                theme: 'light' | 'dark' | 'auto'
+            }) => string
+            reset: (widgetId: string) => void
+            remove: (widgetId: string) => void
+        }
+    }
+}
 
 export default function Signup() {
     const navigate = useNavigate()
@@ -13,9 +32,72 @@ export default function Signup() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+    const [captchaLoaded, setCaptchaLoaded] = useState(false)
+
+    const turnstileRef = useRef<HTMLDivElement>(null)
+    const widgetIdRef = useRef<string | null>(null)
+
+    // Load Turnstile script
+    useEffect(() => {
+        if (!TURNSTILE_SITE_KEY) {
+            // If no site key configured, skip captcha
+            setCaptchaLoaded(true)
+            setCaptchaToken('skip')
+            return
+        }
+
+        // Check if script already loaded
+        if (window.turnstile) {
+            setCaptchaLoaded(true)
+            return
+        }
+
+        const script = document.createElement('script')
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+        script.async = true
+        script.defer = true
+        script.onload = () => setCaptchaLoaded(true)
+        document.head.appendChild(script)
+
+        return () => {
+            // Cleanup widget on unmount
+            if (widgetIdRef.current && window.turnstile) {
+                window.turnstile.remove(widgetIdRef.current)
+            }
+        }
+    }, [])
+
+    // Render Turnstile widget when loaded
+    useEffect(() => {
+        if (!captchaLoaded || !turnstileRef.current || !TURNSTILE_SITE_KEY) return
+        if (widgetIdRef.current) return // Already rendered
+
+        widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+            sitekey: TURNSTILE_SITE_KEY,
+            callback: (token: string) => {
+                setCaptchaToken(token)
+            },
+            'error-callback': () => {
+                setError('CAPTCHA verification failed. Please try again.')
+                setCaptchaToken(null)
+            },
+            'expired-callback': () => {
+                setCaptchaToken(null)
+            },
+            theme: 'dark'
+        })
+    }, [captchaLoaded])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+
+        // Validate captcha
+        if (!captchaToken) {
+            setError('Please complete the CAPTCHA verification.')
+            return
+        }
+
         setLoading(true)
         setError('')
 
@@ -24,6 +106,11 @@ export default function Signup() {
         if (error) {
             setError(error.message)
             setLoading(false)
+            // Reset captcha on error
+            if (widgetIdRef.current && window.turnstile) {
+                window.turnstile.reset(widgetIdRef.current)
+                setCaptchaToken(null)
+            }
         } else {
             setSuccess(true)
             setLoading(false)
@@ -111,10 +198,23 @@ export default function Signup() {
                             />
                         </div>
 
+                        {/* Cloudflare Turnstile CAPTCHA */}
+                        {TURNSTILE_SITE_KEY && (
+                            <div className="flex flex-col items-center gap-2">
+                                <div ref={turnstileRef} className="cf-turnstile" />
+                                {captchaToken && (
+                                    <div className="flex items-center gap-1 text-emerald-400 text-sm">
+                                        <Shield className="w-4 h-4" />
+                                        <span>Verified</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <button
                             type="submit"
-                            disabled={loading}
-                            className="w-full py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white font-medium rounded-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            disabled={loading || (!captchaToken && !!TURNSTILE_SITE_KEY)}
+                            className="w-full py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white font-medium rounded-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {loading ? (
                                 <>

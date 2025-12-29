@@ -279,7 +279,10 @@ docker compose down
 |----------|-------------|:--------:|
 | `VITE_SUPABASE_URL` | Supabase project URL | ✅ |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key | ✅ |
-| `VITE_GEMINI_API_KEY` | Google Gemini API key | ❌ |
+| `VITE_GEMINI_API_KEY` | Google Gemini API key for AI Quick Add | ❌ |
+| `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key (bot protection) | ❌ |
+
+> **🛡️ Bot Protection**: To prevent automated signups, you can enable [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) CAPTCHA. Get your free site key at [dash.cloudflare.com/turnstile](https://dash.cloudflare.com/turnstile).
 
 ### Reverse Proxy (Production)
 

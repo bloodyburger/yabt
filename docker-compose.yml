@@ -9,6 +9,7 @@ services:
         - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-${PUBLIC_SUPABASE_URL}}
         - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY:-${PUBLIC_SUPABASE_ANON_KEY}}
         - VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}
+        - VITE_TURNSTILE_SITE_KEY=${VITE_TURNSTILE_SITE_KEY}
     container_name: yabt-app
     restart: unless-stopped
     ports:
@@ -18,6 +19,7 @@ services:
       - PUBLIC_SUPABASE_URL=${PUBLIC_SUPABASE_URL}
       - PUBLIC_SUPABASE_ANON_KEY=${PUBLIC_SUPABASE_ANON_KEY}
       - VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}
+      - VITE_TURNSTILE_SITE_KEY=${VITE_TURNSTILE_SITE_KEY}
       - ORIGIN=${ORIGIN:-http://localhost:5177}
     env_file:
       - .env
