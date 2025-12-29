@@ -5,7 +5,7 @@ import App from './App'
 import './index.css'
 
 const options = {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+    api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
     person_profiles: 'identified_only' as const,
     capture_pageview: false, // We'll manually capture page views for SPA
     capture_pageleave: true,
@@ -15,7 +15,7 @@ const options = {
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <PostHogProvider
-            apiKey={import.meta.env.VITE_POSTHOG_KEY}
+            apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY}
             options={options}
         >
             <App />
