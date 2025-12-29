@@ -202,38 +202,47 @@ alter table scheduled_transactions enable row level security;
 alter table net_worth_snapshots enable row level security;
 
 -- Profiles: Users can only access their own profile
+drop policy if exists "Users can view own profile" on profiles;
 create policy "Users can view own profile"
   on profiles for select using (auth.uid() = id);
 
+drop policy if exists "Users can update own profile" on profiles;
 create policy "Users can update own profile"
   on profiles for update using (auth.uid() = id);
 
 -- Budgets: Users can only access their own budgets
+drop policy if exists "Users can view own budgets" on budgets;
 create policy "Users can view own budgets"
   on budgets for select using (auth.uid() = user_id);
 
+drop policy if exists "Users can insert own budgets" on budgets;
 create policy "Users can insert own budgets"
   on budgets for insert with check (auth.uid() = user_id);
 
+drop policy if exists "Users can update own budgets" on budgets;
 create policy "Users can update own budgets"
   on budgets for update using (auth.uid() = user_id);
 
+drop policy if exists "Users can delete own budgets" on budgets;
 create policy "Users can delete own budgets"
   on budgets for delete using (auth.uid() = user_id);
 
 -- Accounts: Access through budget ownership
+drop policy if exists "Users can access accounts" on accounts;
 create policy "Users can access accounts"
   on accounts for all using (
     budget_id in (select id from budgets where user_id = auth.uid())
   );
 
 -- Category Groups: Access through budget ownership
+drop policy if exists "Users can access category_groups" on category_groups;
 create policy "Users can access category_groups"
   on category_groups for all using (
     budget_id in (select id from budgets where user_id = auth.uid())
   );
 
 -- Categories: Access through category group -> budget ownership
+drop policy if exists "Users can access categories" on categories;
 create policy "Users can access categories"
   on categories for all using (
     category_group_id in (
@@ -244,6 +253,7 @@ create policy "Users can access categories"
   );
 
 -- Monthly Budgets: Access through category -> category group -> budget
+drop policy if exists "Users can access monthly_budgets" on monthly_budgets;
 create policy "Users can access monthly_budgets"
   on monthly_budgets for all using (
     category_id in (
@@ -254,12 +264,14 @@ create policy "Users can access monthly_budgets"
   );
 
 -- Payees: Access through budget ownership
+drop policy if exists "Users can access payees" on payees;
 create policy "Users can access payees"
   on payees for all using (
     budget_id in (select id from budgets where user_id = auth.uid())
   );
 
 -- Transactions: Access through account -> budget ownership
+drop policy if exists "Users can access transactions" on transactions;
 create policy "Users can access transactions"
   on transactions for all using (
     account_id in (
@@ -270,6 +282,7 @@ create policy "Users can access transactions"
   );
 
 -- Scheduled Transactions: Access through account -> budget
+drop policy if exists "Users can access scheduled_transactions" on scheduled_transactions;
 create policy "Users can access scheduled_transactions"
   on scheduled_transactions for all using (
     account_id in (
@@ -280,6 +293,7 @@ create policy "Users can access scheduled_transactions"
   );
 
 -- Net Worth Snapshots: Access through budget ownership
+drop policy if exists "Users can access net_worth_snapshots" on net_worth_snapshots;
 create policy "Users can access net_worth_snapshots"
   on net_worth_snapshots for all using (
     budget_id in (select id from budgets where user_id = auth.uid())
