@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
     Sparkles, Zap, Shield, PiggyBank, TrendingUp, ChevronRight,
-    Check, Star, ArrowRight, Infinity, Smartphone
+    Check, Star, ArrowRight, Infinity, Smartphone, Cloud, Users, Mail
 } from 'lucide-react'
 import logo from '@/assets/logo.png'
 
@@ -70,6 +70,7 @@ export default function Landing() {
                     <div className="hidden md:flex items-center gap-8">
                         <a href="#features" className="text-zinc-400 hover:text-white transition-colors uppercase text-sm tracking-wider font-medium">Features</a>
                         <a href="#pricing" className="text-zinc-400 hover:text-white transition-colors uppercase text-sm tracking-wider font-medium">Pricing</a>
+                        <a href="#roadmap" className="text-zinc-400 hover:text-white transition-colors uppercase text-sm tracking-wider font-medium">Roadmap</a>
                         <Link
                             to="/auth/login"
                             className="px-6 py-2.5 bg-white text-black font-bold uppercase text-sm tracking-wider hover:bg-zinc-200 transition-colors"
@@ -170,6 +171,11 @@ export default function Landing() {
             {/* Pricing Section - High contrast */}
             <section id="pricing" className="relative bg-black py-32">
                 <PricingSection />
+            </section>
+
+            {/* Roadmap Section */}
+            <section id="roadmap" className="relative bg-zinc-950 py-32 border-y border-zinc-800">
+                <RoadmapSection />
             </section>
 
             {/* CTA Section */}
@@ -326,6 +332,80 @@ function PricingSection() {
                     </a>
                     <p className="text-zinc-600 text-xs text-center mt-4 uppercase tracking-wider">Coming Soon</p>
                 </div>
+            </div>
+        </div>
+    )
+}
+
+// Roadmap Section Component
+function RoadmapSection() {
+    const { ref, isInView } = useInView(0.2)
+
+    const roadmapItems = [
+        {
+            icon: Smartphone,
+            title: 'Native Mobile Apps',
+            description: 'iOS and Android apps for seamless tracking on the go.',
+            status: 'Coming Soon'
+        },
+        {
+            icon: Cloud,
+            title: 'BYO Cloud Storage',
+            description: 'Sync your data with Dropbox, Google Drive, or OneDrive.',
+            status: 'In Progress'
+        },
+        {
+            icon: Users,
+            title: 'Shared Budgets',
+            description: 'Manage finances together with your partner or family.',
+            status: 'Planned'
+        },
+        {
+            icon: Mail,
+            title: 'Email Integration',
+            description: 'Send your expense reports and budget alerts via email.',
+            status: 'Planned'
+        }
+    ]
+
+    return (
+        <div ref={ref} className="max-w-7xl mx-auto px-6">
+            <div
+                className={`text-center mb-20 transition-all duration-1000 ${isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'
+                    }`}
+            >
+                <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tight mb-6">
+                    The{' '}
+                    <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                        Roadmap
+                    </span>
+                </h2>
+                <p className="text-xl text-zinc-400">Where we're headed next.</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-1">
+                {roadmapItems.map((item, index) => {
+                    const Icon = item.icon
+                    return (
+                        <div
+                            key={item.title}
+                            className={`p-10 bg-zinc-900 border border-zinc-800 transition-all duration-700 ${isInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'
+                                }`}
+                            style={{ transitionDelay: `${index * 150}ms` }}
+                        >
+                            <div className="w-12 h-12 bg-white/5 flex items-center justify-center mb-6">
+                                <Icon className="w-6 h-6 text-zinc-400" />
+                            </div>
+                            <h3 className="text-xl font-bold uppercase tracking-tight mb-2">{item.title}</h3>
+                            <p className="text-zinc-500 text-sm mb-6 leading-relaxed">{item.description}</p>
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-none">
+                                <div className={`w-1.5 h-1.5 rounded-full ${item.status === 'In Progress' ? 'bg-blue-500 animate-pulse' : 'bg-zinc-600'
+                                    }`} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{item.status}</span>
+                            </div>
+                        </div>
+                    )
+                })}
             </div>
         </div>
     )
