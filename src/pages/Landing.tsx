@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
     Sparkles, Zap, Shield, PiggyBank, TrendingUp, ChevronRight,
-    Check, Star, ArrowRight, Infinity, Smartphone, Cloud, Users, Mail
+    Check, Star, ArrowRight, Infinity, Smartphone, Cloud, Users, Mail,
+    Mic, Lightbulb, Brain, Command
 } from 'lucide-react'
 import logo from '@/assets/logo.png'
 
@@ -34,9 +35,29 @@ export default function Landing() {
 
     const features = [
         {
+            icon: Mic,
+            title: 'Voice-to-Budget',
+            description: 'Just say "spent 50 rupees on chai" and it\'s logged. Powered by Whisper AI for any language.'
+        },
+        {
             icon: Zap,
             title: 'AI-Powered Transactions',
-            description: 'Just type "Spent 500 at Starbucks from HDFC" - our AI handles the rest.'
+            description: 'Type or speak naturally. "Coffee 100 at Starbucks from HDFC" - AI handles the rest.'
+        },
+        {
+            icon: Brain,
+            title: 'Smart Auto-Categorization',
+            description: 'Learns your habits. Bought at Starbucks before? It remembers and auto-categorizes.'
+        },
+        {
+            icon: Command,
+            title: 'One-Tap Logging',
+            description: 'Press Cmd+K anywhere to instantly add a transaction. No friction, just logging.'
+        },
+        {
+            icon: Lightbulb,
+            title: 'Smart Insights',
+            description: 'Get alerted before you overspend. "You\'re at 85% of your Food budget"—actionable warnings.'
         },
         {
             icon: PiggyBank,
@@ -45,8 +66,8 @@ export default function Landing() {
         },
         {
             icon: TrendingUp,
-            title: 'Real-Time Insights',
-            description: 'Beautiful charts and reports. Track net worth, spending patterns, and more.'
+            title: 'Real-Time Reports',
+            description: 'Beautiful charts and analytics. Track net worth, spending patterns, and trends.'
         },
         {
             icon: Shield,
@@ -114,8 +135,8 @@ export default function Landing() {
                     </h1>
 
                     <p className="text-xl md:text-2xl text-zinc-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-                        AI-powered budgeting that doesn't suck. Track every penny,
-                        build your wealth—<strong className="text-white">completely free</strong>.
+                        Voice-powered budgeting that learns your habits. Track every penny
+                        in any language—<strong className="text-white">completely free</strong>.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -160,7 +181,7 @@ export default function Landing() {
 
                 {/* Feature Cards */}
                 <div className="max-w-7xl mx-auto px-6 py-20">
-                    <div className="grid lg:grid-cols-2 gap-1">
+                    <div className="grid lg:grid-cols-2 xl:grid-cols-4 gap-1">
                         {features.map((feature, index) => (
                             <FeatureCard key={feature.title} feature={feature} index={index} />
                         ))}
@@ -284,7 +305,7 @@ function PricingSection() {
                     <div className="text-6xl font-black mb-2">$0</div>
                     <p className="text-emerald-400 text-sm mb-8 uppercase tracking-wider">Forever Free</p>
                     <ul className="space-y-4 mb-10">
-                        {['Unlimited transactions', 'AI-powered entry', 'Full reports & analytics', 'Net worth tracking', 'All features unlocked'].map(item => (
+                        {['Unlimited transactions', 'Voice AI in any language', 'Smart auto-categorization', 'One-tap logging (Cmd+K)', 'Smart overspend alerts', 'Full reports & analytics'].map(item => (
                             <li key={item} className="flex items-center gap-3 text-zinc-200">
                                 <Check className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                                 <span>{item}</span>

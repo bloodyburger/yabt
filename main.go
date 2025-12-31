@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ var (
 	logRequestBody = getEnv("LOG_REQUEST_BODY", "true") == "true"
 	nodeEnv        = getEnv("NODE_ENV", "production")
 	ollamaAPIKey   = getEnv("OLLAMA_API_KEY", "")
+	groqAPIKey     = getEnv("GROQ_API_KEY", "")
 	distPath       = "./dist"
 )
 
@@ -480,6 +482,88 @@ func ollamaProxyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(respBody)
 }
 
+// Transcribe Audio using Groq Whisper API
+func transcribeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if groqAPIKey == "" {
+		http.Error(w, "Groq API key not configured", http.StatusInternalServerError)
+		return
+	}
+
+	// Limit upload size to 25MB (Groq limit)
+	r.ParseMultipartForm(25 << 20)
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Error retrieving file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Prepare request to Groq
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// Add file field
+	part, err := writer.CreateFormFile("file", header.Filename)
+	if err != nil {
+		http.Error(w, "Error creating multipart form", http.StatusInternalServerError)
+		return
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		http.Error(w, "Error copying file", http.StatusInternalServerError)
+		return
+	}
+
+	// Add model field
+	if err := writer.WriteField("model", "whisper-large-v3"); err != nil {
+		http.Error(w, "Error writing model field", http.StatusInternalServerError)
+		return
+	}
+
+	writer.Close()
+
+	// Create request
+	req, err := http.NewRequest("POST", "https://api.groq.com/openai/v1/audio/transcriptions", body)
+	if err != nil {
+		http.Error(w, "Error creating request", http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+groqAPIKey)
+
+	// Send request
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		logJSON("error", "Groq API request failed", &LogEntry{Error: err.Error()})
+		http.Error(w, "Failed to contact Groq API", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Failed to read Groq response", http.StatusInternalServerError)
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logJSON("error", fmt.Sprintf("Groq API error: %s", string(respBody)), nil)
+		http.Error(w, "Groq API error", resp.StatusCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(respBody)
+}
+
 func main() {
 	// Create router
 	mux := http.NewServeMux()
@@ -488,6 +572,7 @@ func main() {
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/api/log", logAPIHandler)
 	mux.HandleFunc("/api/ai/chat", ollamaProxyHandler)
+	mux.HandleFunc("/api/ai/transcribe", transcribeHandler)
 
 	// Static files and SPA fallback
 	mux.Handle("/", spaHandler(distPath))

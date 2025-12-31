@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { Plus, Wand2 } from 'lucide-react'
 import AddTransactionModal from '@/components/common/AddTransactionModal'
 import NLPTransactionInput from '@/components/common/NLPTransactionInput'
@@ -15,6 +15,19 @@ export function TransactionModalProvider({ children }: { children: ReactNode }) 
     const [isNLPOpen, setIsNLPOpen] = useState(false)
     const [showFabMenu, setShowFabMenu] = useState(false)
     const [defaultAccountId, setDefaultAccountId] = useState<string | undefined>(undefined)
+
+    // Global keyboard shortcut: Cmd/Ctrl + K opens NLP input
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault()
+                setIsNLPOpen(true)
+                setShowFabMenu(false)
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [])
 
     const openTransactionModal = (accountId?: string) => {
         setDefaultAccountId(accountId)

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Check, Search, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Check, Search, ArrowUpRight, ArrowDownLeft, Loader2, Tag, X } from 'lucide-react'
 import { supabase, logger } from '@/lib/supabase'
 import { useSettings } from '@/contexts/SettingsContext'
 import { formatMoney } from '@/lib/formatMoney'
 import { useTransactionModal } from '@/contexts/TransactionModalContext'
 import EditTransactionModal from '@/components/common/EditTransactionModal'
+import { TransactionTags } from '@/components/common/TagManager'
+import { useBudget } from '@/contexts/BudgetContext'
 
 interface Transaction {
     id: string
@@ -27,21 +29,48 @@ interface Account {
     balance: number
 }
 
+interface TagItem {
+    id: string
+    name: string
+    color: string
+}
+
 export default function AccountDetail() {
     const { id } = useParams<{ id: string }>()
     const { currency, dateFormat } = useSettings()
     const { openTransactionModal } = useTransactionModal()
+    const { currentBudget } = useBudget()
 
     const [account, setAccount] = useState<Account | null>(null)
     const [transactions, setTransactions] = useState<Transaction[]>([])
+    const [transactionTagsMap, setTransactionTagsMap] = useState<Record<string, string[]>>({})
     const [searchQuery, setSearchQuery] = useState('')
     const [loading, setLoading] = useState(true)
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+    const [tagsRefreshKey, setTagsRefreshKey] = useState(0)
+    const [availableTags, setAvailableTags] = useState<TagItem[]>([])
+    const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null)
 
     useEffect(() => {
         if (!id) return
         fetchData()
     }, [id])
+
+    useEffect(() => {
+        if (currentBudget) {
+            fetchTags()
+        }
+    }, [currentBudget])
+
+    const fetchTags = async () => {
+        if (!currentBudget) return
+        const { data } = await supabase
+            .from('tags')
+            .select('id, name, color')
+            .eq('budget_id', currentBudget.id)
+            .order('name')
+        if (data) setAvailableTags(data)
+    }
 
     const fetchData = async () => {
         if (!id) {
@@ -88,6 +117,27 @@ export default function AccountDetail() {
         })
 
         setTransactions(txData || [])
+
+        // Fetch tags for all transactions
+        if (txData && txData.length > 0) {
+            const txIds = txData.map((t: Transaction) => t.id)
+            const { data: tagLinks } = await supabase
+                .from('transaction_tags')
+                .select('transaction_id, tag_id')
+                .in('transaction_id', txIds)
+
+            if (tagLinks) {
+                const tagsMap: Record<string, string[]> = {}
+                tagLinks.forEach((link: { transaction_id: string; tag_id: string }) => {
+                    if (!tagsMap[link.transaction_id]) {
+                        tagsMap[link.transaction_id] = []
+                    }
+                    tagsMap[link.transaction_id].push(link.tag_id)
+                })
+                setTransactionTagsMap(tagsMap)
+            }
+        }
+
         setLoading(false)
     }
 
@@ -116,13 +166,24 @@ export default function AccountDetail() {
     }
 
     const filteredTransactions = transactions.filter(t => {
-        if (!searchQuery) return true
-        const q = searchQuery.toLowerCase()
-        return (
-            t.payee?.name?.toLowerCase().includes(q) ||
-            t.category?.name?.toLowerCase().includes(q) ||
-            t.memo?.toLowerCase().includes(q)
-        )
+        // Text search filter
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase()
+            const matchesSearch = (
+                t.payee?.name?.toLowerCase().includes(q) ||
+                t.category?.name?.toLowerCase().includes(q) ||
+                t.memo?.toLowerCase().includes(q)
+            )
+            if (!matchesSearch) return false
+        }
+
+        // Tag filter
+        if (selectedTagFilter) {
+            const txTags = transactionTagsMap[t.id] || []
+            if (!txTags.includes(selectedTagFilter)) return false
+        }
+
+        return true
     })
 
     const handleTransactionClick = (transaction: Transaction) => {
@@ -131,6 +192,7 @@ export default function AccountDetail() {
 
     const handleTransactionUpdate = () => {
         fetchData() // Refresh data
+        setTagsRefreshKey(prev => prev + 1) // Force tags to refresh
     }
 
     if (loading) {
@@ -161,8 +223,8 @@ export default function AccountDetail() {
             </div>
 
             {/* Actions Bar */}
-            <div className="flex items-center gap-4 mb-6">
-                <div className="flex-1 relative">
+            <div className="flex flex-wrap items-center gap-4 mb-6">
+                <div className="flex-1 relative min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                         type="text"
@@ -172,6 +234,31 @@ export default function AccountDetail() {
                         className="input pl-10"
                     />
                 </div>
+
+                {/* Tag Filter */}
+                <div className="relative">
+                    <select
+                        value={selectedTagFilter || ''}
+                        onChange={(e) => setSelectedTagFilter(e.target.value || null)}
+                        className="input pl-9 pr-8 appearance-none min-w-[150px]"
+                    >
+                        <option value="">All Tags</option>
+                        {availableTags.map(tag => (
+                            <option key={tag.id} value={tag.id}>{tag.name}</option>
+                        ))}
+                    </select>
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    {selectedTagFilter && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedTagFilter(null)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+                        >
+                            <X className="w-3 h-3 text-slate-400" />
+                        </button>
+                    )}
+                </div>
+
                 <button onClick={() => openTransactionModal(id)} className="btn btn-primary">
                     Add Transaction
                 </button>
@@ -184,8 +271,9 @@ export default function AccountDetail() {
                     <div className="col-span-1"></div>
                     <div className="col-span-2">Date</div>
                     <div className="col-span-3">Payee</div>
-                    <div className="col-span-3">Category</div>
-                    <div className="col-span-3 text-right">Amount</div>
+                    <div className="col-span-2">Category</div>
+                    <div className="col-span-2">Tags</div>
+                    <div className="col-span-2 text-right">Amount</div>
                 </div>
 
                 {filteredTransactions.length === 0 ? (
@@ -221,10 +309,13 @@ export default function AccountDetail() {
                                     <p className="text-xs text-slate-500 truncate">{transaction.memo}</p>
                                 )}
                             </div>
-                            <div className="col-span-3 text-sm text-slate-600 dark:text-slate-300">
+                            <div className="col-span-2 text-sm text-slate-600 dark:text-slate-300">
                                 {transaction.category?.name || (transaction.amount > 0 ? 'Income' : 'Uncategorized')}
                             </div>
-                            <div className="col-span-3 text-right">
+                            <div className="col-span-2">
+                                <TransactionTags key={`tags-${transaction.id}-${tagsRefreshKey}`} transactionId={transaction.id} />
+                            </div>
+                            <div className="col-span-2 text-right">
                                 <span className={`font-medium ${transaction.amount >= 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
                                     {transaction.amount >= 0 ? (
                                         <span className="inline-flex items-center gap-1">

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Wand2, X } from 'lucide-react'
+import { Loader2, Wand2, X, Mic, MicOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 
@@ -12,6 +12,9 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
     const { currentBudget } = useBudget()
     const [text, setText] = useState('')
     const [loading, setLoading] = useState(false)
+    const [isListening, setIsListening] = useState(false)
+    const [recordingError, setRecordingError] = useState('')
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
     const [error, setError] = useState('')
     const [parsedResult, setParsedResult] = useState<any>(null)
 
@@ -63,7 +66,7 @@ Rules:
                         stream: false,
                         options: {
                             temperature: 0.1,
-                            num_predict: 250
+                            num_predict: 500
                         }
                     })
                 }
@@ -144,14 +147,33 @@ Rules:
 
             // Find or create category
             let categoryId = null
-            if (parsed.category) {
+            let usedLearnedCategory = false
+
+            // LEARNING: First check if we have a learned rule for this payee
+            if (parsed.payee) {
+                const normalizedPayee = parsed.payee.toLowerCase().trim()
+                const { data: learnedRule } = await supabase
+                    .from('payee_category_rules')
+                    .select('category_id')
+                    .eq('budget_id', currentBudget.id)
+                    .eq('payee_name', normalizedPayee)
+                    .single()
+
+                if (learnedRule?.category_id) {
+                    categoryId = learnedRule.category_id
+                    usedLearnedCategory = true
+                }
+            }
+
+            // If no learned rule, use AI-suggested category
+            if (!categoryId && parsed.category) {
                 // Try to find matching category
                 const { data: categories } = await supabase
                     .from('categories')
                     .select('id, name, category_group_id, category_groups!inner(budget_id)')
                     .eq('category_groups.budget_id', currentBudget.id)
 
-                const matchingCategory = categories?.find(c =>
+                const matchingCategory = categories?.find((c: any) =>
                     c.name.toLowerCase().includes(parsed.category.toLowerCase()) ||
                     parsed.category.toLowerCase().includes(c.name.toLowerCase())
                 )
@@ -160,7 +182,7 @@ Rules:
                     categoryId = matchingCategory.id
                 } else {
                     // Use Assorted/Uncategorized
-                    const assortedCat = categories?.find(c => c.name === 'Uncategorized')
+                    const assortedCat = categories?.find((c: any) => c.name === 'Uncategorized')
                     categoryId = assortedCat?.id || null
                 }
             }
@@ -223,6 +245,31 @@ Rules:
                 details: { input_text: text, parsed_result: parsed }
             })
 
+            // LEARNING: Save payee-category rule for future use
+            if (parsed.payee && categoryId && !usedLearnedCategory) {
+                const normalizedPayee = parsed.payee.toLowerCase().trim()
+                await supabase
+                    .from('payee_category_rules')
+                    .upsert({
+                        budget_id: currentBudget.id,
+                        payee_name: normalizedPayee,
+                        category_id: categoryId,
+                        usage_count: 1,
+                        last_used_at: new Date().toISOString()
+                    }, {
+                        onConflict: 'budget_id,payee_name'
+                    })
+            } else if (parsed.payee && categoryId && usedLearnedCategory) {
+                // Increment usage count for existing rule
+                const normalizedPayee = parsed.payee.toLowerCase().trim()
+                await supabase.rpc('increment_payee_rule_usage', {
+                    p_budget_id: currentBudget.id,
+                    p_payee_name: normalizedPayee
+                }).then(() => { }).catch(() => {
+                    // Silently fail if RPC doesn't exist yet
+                })
+            }
+
             onSuccess()
             onClose()
         } catch (err: any) {
@@ -237,8 +284,82 @@ Rules:
                 error_message: err.message,
                 details: { input_text: text }
             })
+
+
         } finally {
             setLoading(false)
+        }
+    }
+
+    const startRecording = async () => {
+        try {
+            setRecordingError('')
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const recorder = new MediaRecorder(stream)
+            const chunks: Blob[] = []
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunks.push(e.data)
+                }
+            }
+
+            recorder.onstop = async () => {
+                const audioBlob = new Blob(chunks, { type: 'audio/webm' })
+                await transcribeAudio(audioBlob)
+                stream.getTracks().forEach(track => track.stop())
+            }
+
+            recorder.start()
+            setMediaRecorder(recorder)
+            setIsListening(true)
+        } catch (err: any) {
+            console.error('Error accessing microphone:', err)
+            setRecordingError('Could not access microphone. Please check permissions.')
+        }
+    }
+
+    const stopRecording = () => {
+        if (mediaRecorder && isListening) {
+            mediaRecorder.stop()
+            setIsListening(false)
+            setMediaRecorder(null)
+        }
+    }
+
+    const transcribeAudio = async (audioBlob: Blob) => {
+        setLoading(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', audioBlob, 'recording.webm')
+
+            const response = await fetch('/api/ai/transcribe', {
+                method: 'POST',
+                body: formData,
+            })
+
+            if (!response.ok) {
+                throw new Error('Transcription failed')
+            }
+
+            const data = await response.json()
+            const transcript = data.text
+            if (transcript) {
+                setText((prev) => (prev ? `${prev} ${transcript}` : transcript))
+            }
+        } catch (err: any) {
+            console.error('Transcription error:', err)
+            setError('Failed to transcribe audio. Please try again.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const toggleListening = () => {
+        if (isListening) {
+            stopRecording()
+        } else {
+            startRecording()
         }
     }
 
@@ -266,14 +387,32 @@ Rules:
                         </div>
                     )}
 
+                    {recordingError && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+                            {recordingError}
+                        </div>
+                    )}
+
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Describe your transaction
-                        </label>
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Describe your transaction
+                            </label>
+                            <button
+                                onClick={toggleListening}
+                                className={`p-2 rounded-full transition-colors ${isListening
+                                    ? 'bg-red-100 text-red-600 animate-pulse'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'
+                                    }`}
+                                title={isListening ? 'Stop listening' : 'Start listening'}
+                            >
+                                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                            </button>
+                        </div>
                         <textarea
                             value={text}
                             onChange={(e) => setText(e.target.value)}
-                            placeholder="e.g., Spent $25 on coffee at Starbucks today"
+                            placeholder={isListening ? "Listening..." : "e.g., Spent $25 on coffee at Starbucks today"}
                             className="input min-h-[100px] resize-none"
                             rows={4}
                         />

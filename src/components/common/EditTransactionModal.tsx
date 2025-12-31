@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Loader2, Search, Plus, Trash2 } from 'lucide-react'
+import { X, Loader2, Search, Plus, Trash2, Tag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import TagManager from './TagManager'
 
 const currencySymbols: Record<string, string> = {
     USD: '$', EUR: '€', GBP: '£', INR: '₹', JPY: '¥',
@@ -420,6 +421,15 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate }:
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Memo</label>
                         <input type="text" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Add a note" className="input" />
+                    </div>
+
+                    {/* Tags */}
+                    <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            <Tag className="w-4 h-4" />
+                            Tags
+                        </label>
+                        <TagManager transactionId={transaction.id} />
                     </div>
 
                     {/* Cleared */}

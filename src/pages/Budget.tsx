@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { formatMoney, getMoneyColorClass } from '@/lib/formatMoney'
+import Insights from '@/components/common/Insights'
+import ActivityModal from '@/components/common/ActivityModal'
 
 interface Category {
     id: string
@@ -38,6 +40,7 @@ export default function Budget() {
     const [editingCategory, setEditingCategory] = useState<string | null>(null)
     const [editValue, setEditValue] = useState('')
     const [saving, setSaving] = useState(false)
+    const [activityCategory, setActivityCategory] = useState<{ id: string; name: string } | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
     // Helper to get budget month date range based on monthStartDay setting
@@ -306,6 +309,9 @@ export default function Budget() {
                 </div>
             </div>
 
+            {/* Smart Insights */}
+            <Insights />
+
             {/* Budget Table */}
             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
                 {/* Header Row */}
@@ -385,7 +391,10 @@ export default function Budget() {
                                                 </button>
                                             )}
                                         </div>
-                                        <div className="col-span-2 text-right text-slate-600 dark:text-slate-300">
+                                        <div
+                                            className="col-span-2 text-right text-slate-600 dark:text-slate-300 cursor-pointer hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 -mx-2 -my-1 rounded transition-colors"
+                                            onClick={() => setActivityCategory({ id: category.id, name: category.name })}
+                                        >
                                             {formatMoney(activity, currency)}
                                         </div>
                                         <div className={`col-span-3 text-right font-medium ${getMoneyColorClass(available)}`}>
@@ -398,6 +407,17 @@ export default function Budget() {
                     ))
                 )}
             </div>
+
+            {/* Activity Modal */}
+            {activityCategory && (
+                <ActivityModal
+                    categoryId={activityCategory.id}
+                    categoryName={activityCategory.name}
+                    month={currentMonth}
+                    monthStartDay={monthStartDay}
+                    onClose={() => setActivityCategory(null)}
+                />
+            )}
         </div>
     )
 }

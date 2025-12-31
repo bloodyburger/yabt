@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { User, Palette, Check, Loader2, Calendar } from 'lucide-react'
+import { User, Palette, Check, Loader2, Tag as TagIcon } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import TagManager from '@/components/common/TagManager'
 
 const currencies = [
     { code: 'USD', name: 'US Dollar ($)' },
@@ -101,8 +102,6 @@ export default function Settings() {
                         </div>
                     </div>
 
-
-
                     {/* Preferences Section */}
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6">
                         <div className="flex items-center gap-3 mb-4">
@@ -181,6 +180,21 @@ export default function Settings() {
                                 )}
                             </button>
                         </div>
+                    </div>
+
+                    {/* Tags Section */}
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+                                <TagIcon className="w-5 h-5 text-emerald-500" />
+                            </div>
+                            <div>
+                                <h2 className="font-semibold text-slate-900 dark:text-white">Tags</h2>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Organize transactions with custom tags</p>
+                            </div>
+                        </div>
+
+                        <TagManager mode="manage" />
                     </div>
                 </div>
             </div>
