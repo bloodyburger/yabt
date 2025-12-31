@@ -55,7 +55,15 @@ export default function ActivityModal({ categoryId, categoryName, month, monthSt
     const fetchTransactions = async () => {
         setLoading(true)
 
+        // Handle case where categoryId might not be set
+        if (!categoryId) {
+            console.warn('ActivityModal: No categoryId provided')
+            setLoading(false)
+            return
+        }
+
         const { start, end } = getBudgetMonthRange(month)
+        console.log('ActivityModal: Fetching transactions', { categoryId, start, end })
 
         const { data, error } = await supabase
             .from('transactions')
@@ -64,18 +72,21 @@ export default function ActivityModal({ categoryId, categoryName, month, monthSt
                 date,
                 amount,
                 memo,
-                payee:payees(name),
-                account:accounts(name)
+                payee:payees(name)
             `)
             .eq('category_id', categoryId)
             .gte('date', start)
             .lte('date', end)
             .order('date', { ascending: false })
 
+        console.log('ActivityModal: Query result', { dataLength: data?.length, error })
+
         if (error) {
-            console.error('Error fetching transactions:', error)
+            console.error('Error fetching transactions:', error.message, error.details, error.hint)
         } else if (data) {
-            setTransactions(data as Transaction[])
+            // Map data to include null account for now
+            const mappedData = data.map((tx: Record<string, unknown>) => ({ ...tx, account: null }))
+            setTransactions(mappedData as Transaction[])
             const total = data.reduce((sum: number, tx: { amount: number }) => sum + tx.amount, 0)
             setTotalActivity(total)
         }
