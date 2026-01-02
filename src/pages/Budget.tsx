@@ -287,18 +287,18 @@ export default function Budget() {
     return (
         <div className="p-4 lg:p-8">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Budget</h1>
                     <p className="text-slate-500 dark:text-slate-400">Manage your spending plan</p>
                 </div>
 
                 {/* Month Navigation */}
-                <div className="flex items-center gap-2 bg-white dark:bg-slate-800 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
+                <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-800 rounded-lg p-1 border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
                     <button onClick={prevMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors">
                         <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                     </button>
-                    <span className="px-4 py-2 font-medium text-slate-900 dark:text-white min-w-[200px] text-center">
+                    <span className="px-4 py-2 font-medium text-slate-900 dark:text-white min-w-0 sm:min-w-[200px] text-center text-sm sm:text-base flex-1 sm:flex-none">
                         {formatBudgetPeriod(currentMonth)}
                     </span>
                     <button onClick={nextMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors">
@@ -309,7 +309,7 @@ export default function Budget() {
                 {/* Add Category Group Button */}
                 <button
                     onClick={() => setShowAddGroupModal(true)}
-                    className="btn btn-primary"
+                    className="btn btn-primary w-full sm:w-auto"
                 >
                     <Plus className="w-4 h-4" />
                     Add Group
@@ -332,13 +332,13 @@ export default function Budget() {
             <Insights />
 
             {/* Budget Table */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-x-auto">
                 {/* Header Row */}
-                <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    <div className="col-span-5">Category</div>
+                <div className="grid grid-cols-8 sm:grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <div className="col-span-4 sm:col-span-5">Category</div>
                     <div className="col-span-2 text-right">Budgeted</div>
-                    <div className="col-span-2 text-right">Activity</div>
-                    <div className="col-span-3 text-right">Available</div>
+                    <div className="col-span-2 text-right hidden sm:block">Activity</div>
+                    <div className="col-span-2 sm:col-span-3 text-right">Available</div>
                 </div>
 
                 {loading ? (
@@ -356,22 +356,22 @@ export default function Budget() {
                         <div key={group.id}>
                             {/* Group Header */}
                             <div
-                                className="grid grid-cols-12 gap-4 px-4 py-3 bg-slate-100 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-colors"
+                                className="grid grid-cols-8 sm:grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 bg-slate-100 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-colors"
                             >
-                                <div className="col-span-5 flex items-center gap-2" onClick={() => toggleGroup(group.id)}>
+                                <div className="col-span-4 sm:col-span-5 flex items-center gap-1 sm:gap-2 min-w-0" onClick={() => toggleGroup(group.id)}>
                                     {expandedGroups.has(group.id) ? (
-                                        <ChevronUp className="w-4 h-4 text-slate-500" />
+                                        <ChevronUp className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     ) : (
-                                        <ChevronDown className="w-4 h-4 text-slate-500" />
+                                        <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                     )}
-                                    <span className="font-semibold text-slate-700 dark:text-slate-200">{group.name}</span>
+                                    <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm sm:text-base truncate">{group.name}</span>
                                 </div>
-                                <div className="col-span-7 flex justify-end">
+                                <div className="col-span-4 sm:col-span-7 flex justify-end">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setAddingCategoryToGroup(group.id); }}
-                                        className="text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors"
+                                        className="text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors whitespace-nowrap"
                                     >
-                                        + Add Category
+                                        + Add
                                     </button>
                                 </div>
                             </div>
@@ -387,11 +387,11 @@ export default function Budget() {
                                 return (
                                     <div
                                         key={category.id}
-                                        className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                                        className="grid grid-cols-8 sm:grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
                                     >
-                                        <div className="col-span-5 pl-6 flex items-center gap-2">
-                                            <span className="text-slate-700 dark:text-slate-200">{category.name}</span>
-                                            {hasTarget && <Target className="w-4 h-4 text-blue-500" />}
+                                        <div className="col-span-4 sm:col-span-5 pl-4 sm:pl-6 flex items-center gap-1 sm:gap-2 min-w-0">
+                                            <span className="text-slate-700 dark:text-slate-200 text-sm sm:text-base truncate">{category.name}</span>
+                                            {hasTarget && <Target className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />}
                                         </div>
                                         <div className="col-span-2 text-right">
                                             {isEditing ? (
@@ -403,27 +403,27 @@ export default function Budget() {
                                                         onChange={(e) => setEditValue(e.target.value)}
                                                         onKeyDown={(e) => handleKeyDown(e, category.id)}
                                                         onBlur={() => saveBudget(category.id)}
-                                                        className="w-20 px-2 py-1 text-right text-sm border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                                        className="w-16 sm:w-20 px-1 sm:px-2 py-1 text-right text-xs sm:text-sm border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                                                         disabled={saving}
                                                     />
-                                                    {saving && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+                                                    {saving && <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-blue-500" />}
                                                 </div>
                                             ) : (
                                                 <button
                                                     onClick={() => startEditing(category.id, budgeted)}
-                                                    className="text-slate-600 dark:text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors cursor-pointer"
+                                                    className="text-slate-600 dark:text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-1 sm:px-2 py-1 rounded transition-colors cursor-pointer text-xs sm:text-sm"
                                                 >
                                                     {formatMoney(budgeted, currency)}
                                                 </button>
                                             )}
                                         </div>
                                         <div
-                                            className="col-span-2 text-right text-slate-600 dark:text-slate-300 cursor-pointer hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 -mx-2 -my-1 rounded transition-colors"
+                                            className="col-span-2 text-right text-slate-600 dark:text-slate-300 cursor-pointer hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-1 sm:px-2 py-1 -mx-1 sm:-mx-2 -my-1 rounded transition-colors hidden sm:block text-sm"
                                             onClick={() => setActivityCategory({ id: category.id, name: category.name })}
                                         >
                                             {formatMoney(activity, currency)}
                                         </div>
-                                        <div className={`col-span-3 text-right font-medium ${getMoneyColorClass(available)}`}>
+                                        <div className={`col-span-2 sm:col-span-3 text-right font-medium text-xs sm:text-sm ${getMoneyColorClass(available)}`}>
                                             {formatMoney(available, currency)}
                                         </div>
                                     </div>
@@ -615,4 +615,3 @@ function AddCategoryModal({ groupId, dataService, onClose }: AddCategoryModalPro
         </div>
     )
 }
-

@@ -110,8 +110,8 @@ export default function Activity() {
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-4 mb-6">
-                <div className="flex-1 relative">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+                <div className="flex-1 relative min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                         type="text"
@@ -121,12 +121,12 @@ export default function Activity() {
                         className="input pl-10"
                     />
                 </div>
-                <div className="relative">
+                <div className="relative w-full sm:w-auto">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <select
                         value={filterAction}
                         onChange={(e) => setFilterAction(e.target.value)}
-                        className="input pl-9 pr-8 min-w-[180px]"
+                        className="input pl-9 pr-8 w-full sm:w-auto sm:min-w-[180px]"
                     >
                         <option value="">All Actions</option>
                         {uniqueActions.map(action => (

@@ -91,6 +91,16 @@ export interface PayeeCategoryRule {
     category_id: string
 }
 
+export interface ApiKey {
+    id: string
+    user_id: string
+    budget_id: string
+    name: string
+    key_hash: string
+    last_used_at: string | null
+    created_at: string
+}
+
 // ============== DataService Interface ==============
 
 export interface DataService {
@@ -159,6 +169,11 @@ export interface DataService {
     // Payee Category Rules
     getPayeeCategoryRules(budgetId: string): Promise<PayeeCategoryRule[]>
     upsertPayeeCategoryRule(budgetId: string, payeeName: string, categoryId: string): Promise<void>
+
+    // API Keys (iOS Shortcuts)
+    getApiKeys(budgetId: string): Promise<ApiKey[]>
+    createApiKey(data: Omit<ApiKey, 'id' | 'created_at' | 'last_used_at'>): Promise<ApiKey>
+    deleteApiKey(id: string): Promise<void>
 
     // Sync (for Drive provider)
     sync?(): Promise<void>

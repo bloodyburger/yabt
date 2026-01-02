@@ -14,11 +14,22 @@ import type {
     Transaction,
     MonthlyBudget,
     Tag,
-    PayeeCategoryRule
+    PayeeCategoryRule,
+    ApiKey
 } from './dataService'
 
 export class SupabaseDataService implements DataService {
     private userId: string | null = null
+
+    private normalizeBudget(record: any): Budget {
+        if (!record) {
+            return record as Budget
+        }
+        return {
+            ...record,
+            currency: record.currency ?? record.currency_code ?? 'USD'
+        }
+    }
 
     async initialize(): Promise<void> {
         const { data } = await supabase.auth.getUser()
@@ -33,7 +44,7 @@ export class SupabaseDataService implements DataService {
             .select('*')
             .order('created_at', { ascending: false })
         if (error) throw error
-        return data || []
+        return (data || []).map((budget) => this.normalizeBudget(budget))
     }
 
     async getBudget(id: string): Promise<Budget | null> {
@@ -43,23 +54,30 @@ export class SupabaseDataService implements DataService {
             .eq('id', id)
             .single()
         if (error) return null
-        return data
+        return this.normalizeBudget(data)
     }
 
     async createBudget(data: Omit<Budget, 'id' | 'created_at'>): Promise<Budget> {
+        const { currency, ...rest } = data
+        const payload = {
+            ...rest,
+            currency_code: currency
+        }
         const { data: budget, error } = await supabase
             .from('budgets')
-            .insert(data)
+            .insert(payload)
             .select()
             .single()
         if (error) throw error
-        return budget
+        return this.normalizeBudget(budget)
     }
 
     async updateBudget(id: string, data: Partial<Budget>): Promise<void> {
+        const { currency, ...rest } = data
+        const payload = currency ? { ...rest, currency_code: currency } : rest
         const { error } = await supabase
             .from('budgets')
-            .update(data)
+            .update(payload)
             .eq('id', id)
         if (error) throw error
     }
@@ -436,6 +454,36 @@ export class SupabaseDataService implements DataService {
                 { budget_id: budgetId, payee_name: payeeName, category_id: categoryId },
                 { onConflict: 'budget_id,payee_name' }
             )
+        if (error) throw error
+    }
+
+    // ============== API Keys ==============
+
+    async getApiKeys(budgetId: string): Promise<ApiKey[]> {
+        const { data, error } = await supabase
+            .from('api_keys')
+            .select('*')
+            .eq('budget_id', budgetId)
+            .order('created_at', { ascending: false })
+        if (error) throw error
+        return data || []
+    }
+
+    async createApiKey(data: Omit<ApiKey, 'id' | 'created_at' | 'last_used_at'>): Promise<ApiKey> {
+        const { data: apiKey, error } = await supabase
+            .from('api_keys')
+            .insert(data)
+            .select()
+            .single()
+        if (error) throw error
+        return apiKey
+    }
+
+    async deleteApiKey(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('api_keys')
+            .delete()
+            .eq('id', id)
         if (error) throw error
     }
 }

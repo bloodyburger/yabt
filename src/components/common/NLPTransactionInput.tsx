@@ -9,9 +9,76 @@ import { Loader2, Wand2, X, Mic, MicOff } from 'lucide-react'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useData } from '@/contexts/DataContext'
 
+interface ParsedTransaction {
+    amount: number | null
+    payee: string | null
+    category: string | null
+    account: string | null
+    date: string | null
+    memo: string | null
+    type: 'expense' | 'income' | null
+}
+
 interface NLPTransactionInputProps {
     onClose: () => void
     onSuccess: () => void
+}
+
+const normalizeMatchString = (value: string) =>
+    value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+const normalizeParsedTransaction = (raw: any): ParsedTransaction => {
+    const normalizeString = (value: unknown) => (typeof value === 'string' ? value.trim() : null)
+
+    const parseAmount = (value: unknown) => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value
+        if (typeof value === 'string') {
+            const cleaned = value.replace(/[^0-9.-]/g, '')
+            const parsed = parseFloat(cleaned)
+            return Number.isFinite(parsed) ? parsed : null
+        }
+        return null
+    }
+
+    const normalizeType = (value: string | null) => {
+        if (!value) return null
+        const lower = value.toLowerCase()
+        if (lower.includes('income') || lower.includes('inflow') || lower.includes('deposit')) {
+            return 'income'
+        }
+        if (lower.includes('expense') || lower.includes('outflow') || lower.includes('spend')) {
+            return 'expense'
+        }
+        return null
+    }
+
+    const amount = parseAmount(raw.amount ?? raw.Amount ?? raw.value ?? raw.total)
+    const type = normalizeType(
+        normalizeString(raw.type ?? raw.transaction_type ?? raw.transactionType)
+    )
+
+    const normalized: ParsedTransaction = {
+        amount,
+        payee: normalizeString(raw.payee ?? raw.payee_name ?? raw.merchant ?? raw.vendor),
+        category: normalizeString(raw.category ?? raw.category_name ?? raw.categoryName),
+        account: normalizeString(raw.account ?? raw.account_name ?? raw.accountName),
+        date: normalizeString(raw.date ?? raw.transaction_date ?? raw.transactionDate),
+        memo: normalizeString(raw.memo ?? raw.note ?? raw.notes),
+        type
+    }
+
+    if (normalized.amount !== null && normalized.amount < 0) {
+        normalized.amount = Math.abs(normalized.amount)
+        if (!normalized.type) {
+            normalized.type = 'expense'
+        }
+    }
+
+    return normalized
 }
 
 export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransactionInputProps) {
@@ -23,7 +90,7 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
     const [recordingError, setRecordingError] = useState('')
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
     const [error, setError] = useState('')
-    const [parsedResult, setParsedResult] = useState<any>(null)
+    const [parsedResult, setParsedResult] = useState<ParsedTransaction | null>(null)
 
     const parseTransaction = async () => {
         if (!text.trim() || !currentBudget || !isInitialized) return
@@ -90,7 +157,7 @@ Rules:
             const jsonMatch = resultText.match(/\{[\s\S]*\}/)
             if (!jsonMatch) throw new Error('Failed to parse response')
 
-            const parsed = JSON.parse(jsonMatch[0])
+            const parsed = normalizeParsedTransaction(JSON.parse(jsonMatch[0]))
             setParsedResult(parsed)
 
             // Validate required fields
@@ -107,10 +174,11 @@ Rules:
 
             // Try to match parsed account name
             if (parsed.account && openAccounts.length > 0) {
-                const matchingAccount = openAccounts.find(a =>
-                    a.name.toLowerCase().includes(parsed.account.toLowerCase()) ||
-                    parsed.account.toLowerCase().includes(a.name.toLowerCase())
-                )
+                const normalizedAccount = normalizeMatchString(parsed.account)
+                const matchingAccount = openAccounts.find(a => {
+                    const accountName = normalizeMatchString(a.name)
+                    return accountName.includes(normalizedAccount) || normalizedAccount.includes(accountName)
+                })
                 if (matchingAccount) {
                     accountId = matchingAccount.id
                 }
@@ -126,9 +194,9 @@ Rules:
                     const newInbox = await dataService.createAccount({
                         budget_id: currentBudget.id,
                         name: 'Inbox',
-                        type: 'savings',
+                        account_type: 'savings',
                         balance: 0,
-                        on_budget: true,
+                        is_on_budget: true,
                         closed: false,
                         sort_order: 999
                     })
@@ -147,24 +215,48 @@ Rules:
 
             // LEARNING: First check if we have a learned rule for this payee
             if (parsed.payee) {
-                const normalizedPayee = parsed.payee.toLowerCase().trim()
-                const rules = await dataService.getPayeeCategoryRules(currentBudget.id)
-                const learnedRule = rules.find(r => r.payee_name === normalizedPayee)
+                const normalizedPayee = normalizeMatchString(parsed.payee)
+                try {
+                    const rules = await dataService.getPayeeCategoryRules(currentBudget.id)
+                    const learnedRule = rules.find(r => normalizeMatchString(r.payee_name) === normalizedPayee)
 
-                if (learnedRule?.category_id) {
-                    categoryId = learnedRule.category_id
-                    usedLearnedCategory = true
+                    if (learnedRule?.category_id) {
+                        categoryId = learnedRule.category_id
+                        usedLearnedCategory = true
+                    }
+                } catch (err) {
+                    console.warn('Payee rules unavailable:', err)
                 }
             }
 
             // If no learned rule, use AI-suggested category
             if (!categoryId && parsed.category) {
                 const categories = await dataService.getCategories(currentBudget.id)
+                const target = normalizeMatchString(parsed.category)
 
-                const matchingCategory = categories.find(c =>
-                    c.name.toLowerCase().includes(parsed.category.toLowerCase()) ||
-                    parsed.category.toLowerCase().includes(c.name.toLowerCase())
-                )
+                let matchingCategory = categories.find(c => normalizeMatchString(c.name) === target)
+
+                if (!matchingCategory && target) {
+                    matchingCategory = categories.find(c => {
+                        const normalizedName = normalizeMatchString(c.name)
+                        return normalizedName.includes(target) || target.includes(normalizedName)
+                    })
+                }
+
+                if (!matchingCategory && target) {
+                    const targetTokens = new Set(target.split(' ').filter(token => token.length > 2))
+                    let bestScore = 0
+
+                    for (const category of categories) {
+                        const normalizedName = normalizeMatchString(category.name)
+                        const nameTokens = normalizedName.split(' ').filter(token => token.length > 2)
+                        const overlap = nameTokens.filter(token => targetTokens.has(token)).length
+                        if (overlap > bestScore) {
+                            bestScore = overlap
+                            matchingCategory = category
+                        }
+                    }
+                }
 
                 if (matchingCategory) {
                     categoryId = matchingCategory.id
@@ -191,7 +283,8 @@ Rules:
                 }
             }
 
-            const finalAmount = parsed.type === 'expense' ? -Math.abs(parsed.amount) : Math.abs(parsed.amount)
+            const transactionType = parsed.type || 'expense'
+            const finalAmount = transactionType === 'expense' ? -Math.abs(parsed.amount) : Math.abs(parsed.amount)
             const transactionDate = parsed.date || new Date().toISOString().split('T')[0]
 
             // Create transaction
@@ -334,7 +427,7 @@ Rules:
 
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                            <label htmlFor="nlp-transaction" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                 Describe your transaction
                             </label>
                             <button
@@ -349,6 +442,8 @@ Rules:
                             </button>
                         </div>
                         <textarea
+                            id="nlp-transaction"
+                            name="transaction"
                             value={text}
                             onChange={(e) => setText(e.target.value)}
                             placeholder={isListening ? "Listening..." : "e.g., Spent $25 on coffee at Starbucks today"}
@@ -363,11 +458,14 @@ Rules:
                     {parsedResult && (
                         <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 text-sm">
                             <p className="font-medium mb-2">Parsed Result:</p>
-                            <div className="space-y-1 text-slate-600 dark:text-slate-400">
-                                <p>Amount: {parsedResult.amount}</p>
+                            <div className="space-y-1 text-slate-600 dark:text-slate-400 break-words">
+                                <p>Amount: {parsedResult.amount ?? 'Not specified'}</p>
                                 <p>Payee: {parsedResult.payee || 'Not specified'}</p>
                                 <p>Category: {parsedResult.category || 'Uncategorized'}</p>
-                                <p>Type: {parsedResult.type}</p>
+                                <p>Account: {parsedResult.account || 'Inbox'}</p>
+                                <p>Date: {parsedResult.date || 'Today'}</p>
+                                <p>Memo: {parsedResult.memo || 'None'}</p>
+                                <p>Type: {parsedResult.type || 'expense'}</p>
                             </div>
                         </div>
                     )}

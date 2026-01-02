@@ -193,15 +193,17 @@ export default function AccountDetail() {
     return (
         <div className="p-4 lg:p-8">
             {/* Header */}
-            <div className="flex items-center gap-4 mb-8">
-                <Link to="/app/accounts" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                    <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                </Link>
-                <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{account?.name}</h1>
-                    <p className="text-slate-500 dark:text-slate-400">{transactions.length} transactions</p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <Link to="/app/accounts" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                        <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    </Link>
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate">{account?.name}</h1>
+                        <p className="text-slate-500 dark:text-slate-400">{transactions.length} transactions</p>
+                    </div>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right">
                     <p className="text-sm text-slate-500 dark:text-slate-400">Balance</p>
                     <p className={`text-2xl font-bold ${(account?.balance || 0) >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-500'}`}>
                         {formatMoney(account?.balance || 0, currency)}
@@ -210,8 +212,8 @@ export default function AccountDetail() {
             </div>
 
             {/* Actions Bar */}
-            <div className="flex flex-wrap items-center gap-4 mb-6">
-                <div className="flex-1 relative min-w-[200px]">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-4 mb-6">
+                <div className="flex-1 relative min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                         type="text"
@@ -223,11 +225,11 @@ export default function AccountDetail() {
                 </div>
 
                 {/* Tag Filter */}
-                <div className="relative">
+                <div className="relative w-full sm:w-auto">
                     <select
                         value={selectedTagFilter || ''}
                         onChange={(e) => setSelectedTagFilter(e.target.value || null)}
-                        className="input pl-9 pr-8 appearance-none min-w-[150px]"
+                        className="input pl-9 pr-8 appearance-none w-full sm:w-auto sm:min-w-[150px]"
                     >
                         <option value="">All Tags</option>
                         {availableTags.map(tag => (
@@ -246,15 +248,15 @@ export default function AccountDetail() {
                     )}
                 </div>
 
-                <button onClick={() => openTransactionModal(id)} className="btn btn-primary">
+                <button onClick={() => openTransactionModal(id)} className="btn btn-primary w-full sm:w-auto">
                     Add Transaction
                 </button>
             </div>
 
             {/* Transactions List */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-x-auto">
                 {/* Header */}
-                <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider min-w-[720px]">
                     <div className="col-span-1"></div>
                     <div className="col-span-2">Date</div>
                     <div className="col-span-3">Payee</div>
@@ -272,7 +274,7 @@ export default function AccountDetail() {
                         <div
                             key={transaction.id}
                             onClick={() => handleTransactionClick(transaction)}
-                            className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 last:border-b-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors items-center cursor-pointer"
+                            className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 last:border-b-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors items-center cursor-pointer min-w-[720px]"
                         >
                             <div className="col-span-1">
                                 <button

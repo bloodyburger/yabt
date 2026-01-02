@@ -397,3 +397,51 @@ begin
   return v_total_income - v_total_budgeted;
 end;
 $$ language plpgsql security definer;
+
+-- ============================================
+-- API KEYS (for iOS Shortcuts integration)
+-- ============================================
+create table if not exists api_keys (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references profiles(id) on delete cascade not null,
+  budget_id uuid references budgets(id) on delete cascade not null,
+  name text not null default 'iOS Shortcut',
+  key_hash text not null,  -- Store hash, not plaintext
+  last_used_at timestamptz,
+  created_at timestamptz default now()
+);
+
+-- RLS for api_keys
+alter table api_keys enable row level security;
+
+create policy "Users can view own API keys" on api_keys
+  for select using (auth.uid() = user_id);
+create policy "Users can insert own API keys" on api_keys
+  for insert with check (auth.uid() = user_id);
+create policy "Users can delete own API keys" on api_keys
+  for delete using (auth.uid() = user_id);
+
+-- Limit API keys to 2 per budget
+create or replace function enforce_api_key_limit()
+returns trigger as $$
+begin
+  if (
+    select count(*)
+    from api_keys
+    where user_id = new.user_id
+      and budget_id = new.budget_id
+  ) >= 2 then
+    raise exception 'API key limit reached';
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists api_key_limit on api_keys;
+create trigger api_key_limit
+  before insert on api_keys
+  for each row execute procedure enforce_api_key_limit();
+
+-- Indexes for api_keys
+create unique index if not exists idx_api_keys_key_hash on api_keys(key_hash);
+create index if not exists idx_api_keys_budget_id on api_keys(budget_id);

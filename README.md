@@ -249,6 +249,8 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_OLLAMA_API_KEY=your-ollama-key  # Optional
 OLLAMA_API_KEY=your-ollama-key       # Optional (Backend)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key # Required for iOS Shortcuts API
 LOG_WEBHOOK_URL=https://n8n.yourdomain.com/webhook/logs # Optional
 ```
 </details>
@@ -279,6 +281,8 @@ docker compose down
 | `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key | ✅ |
 | `VITE_OLLAMA_API_KEY` | Ollama API key for AI Quick Add | ❌ |
 | `OLLAMA_API_KEY` | Backend API key for Ollama Proxy | ❌ |
+| `SUPABASE_URL` | Supabase project URL for backend APIs | ❌ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (iOS Shortcuts API) | ❌ |
 | `LOG_WEBHOOK_URL` | Webhook URL for server logs | ❌ |
 | `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key (bot protection) | ❌ |
 

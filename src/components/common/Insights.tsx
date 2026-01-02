@@ -39,6 +39,7 @@ export default function Insights() {
     const fetchInsights = async () => {
         if (!currentBudget) return
         setLoading(true)
+        setInsights([])  // Clear old insights first
 
         try {
             const now = new Date()
