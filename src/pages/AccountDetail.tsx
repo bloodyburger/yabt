@@ -44,7 +44,7 @@ interface TagItem {
 export default function AccountDetail() {
     const { id } = useParams<{ id: string }>()
     const { currency, dateFormat } = useSettings()
-    const { openTransactionModal } = useTransactionModal()
+    const { openTransactionModal, refreshKey } = useTransactionModal()
     const { currentBudget } = useBudget()
     const { dataService, isInitialized } = useData()
 
@@ -58,11 +58,11 @@ export default function AccountDetail() {
     const [availableTags, setAvailableTags] = useState<TagItem[]>([])
     const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null)
 
-    // Fetch data when account ID changes and service is initialized
+    // Fetch data when account ID changes, service is initialized, or refreshKey changes
     useEffect(() => {
         if (!id || !isInitialized) return
         fetchData()
-    }, [id, isInitialized, dataService])
+    }, [id, isInitialized, dataService, refreshKey])
 
     // Fetch available tags when budget changes and service is initialized
     useEffect(() => {

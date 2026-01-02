@@ -10,6 +10,7 @@ import { Plus, CreditCard, Wallet, Building, Loader2, Pencil } from 'lucide-reac
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useDataService } from '@/contexts/DataContext'
+import { useTransactionModal } from '@/contexts/TransactionModalContext'
 import { formatMoney, getMoneyColorClass } from '@/lib/formatMoney'
 import { logger } from '@/lib/logger'
 import type { Account } from '@/lib/dataService'
@@ -20,6 +21,7 @@ export default function Accounts() {
     const { currentBudget } = useBudget()
     const { currency } = useSettings()
     const dataService = useDataService()
+    const { refreshKey } = useTransactionModal()
 
     const [accounts, setAccounts] = useState<Account[]>([])
     const [loading, setLoading] = useState(true)
@@ -29,7 +31,7 @@ export default function Accounts() {
     useEffect(() => {
         if (!currentBudget) return
         fetchAccounts()
-    }, [currentBudget, dataService])
+    }, [currentBudget, dataService, refreshKey])
 
     const fetchAccounts = async () => {
         if (!currentBudget) return

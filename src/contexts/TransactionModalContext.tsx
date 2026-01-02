@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { Plus, Wand2 } from 'lucide-react'
 import AddTransactionModal from '@/components/common/AddTransactionModal'
 import NLPTransactionInput from '@/components/common/NLPTransactionInput'
@@ -6,6 +6,8 @@ import NLPTransactionInput from '@/components/common/NLPTransactionInput'
 interface TransactionModalContextType {
     openTransactionModal: (accountId?: string) => void
     openNLPInput: () => void
+    refreshKey: number  // Increment this to trigger refresh in subscribed components
+    triggerRefresh: () => void
 }
 
 const TransactionModalContext = createContext<TransactionModalContextType | undefined>(undefined)
@@ -15,6 +17,11 @@ export function TransactionModalProvider({ children }: { children: ReactNode }) 
     const [isNLPOpen, setIsNLPOpen] = useState(false)
     const [showFabMenu, setShowFabMenu] = useState(false)
     const [defaultAccountId, setDefaultAccountId] = useState<string | undefined>(undefined)
+    const [refreshKey, setRefreshKey] = useState(0)
+
+    const triggerRefresh = useCallback(() => {
+        setRefreshKey(prev => prev + 1)
+    }, [])
 
     // Global keyboard shortcut: Cmd/Ctrl + K opens NLP input
     useEffect(() => {
@@ -41,7 +48,7 @@ export function TransactionModalProvider({ children }: { children: ReactNode }) 
     }
 
     return (
-        <TransactionModalContext.Provider value={{ openTransactionModal, openNLPInput }}>
+        <TransactionModalContext.Provider value={{ openTransactionModal, openNLPInput, refreshKey, triggerRefresh }}>
             {children}
 
             {/* FAB Menu Backdrop */}
@@ -93,6 +100,7 @@ export function TransactionModalProvider({ children }: { children: ReactNode }) 
                     onClose={() => {
                         setIsOpen(false)
                         setDefaultAccountId(undefined)
+                        triggerRefresh()  // Trigger refresh when manual transaction is added
                     }}
                 />
             )}
@@ -102,7 +110,7 @@ export function TransactionModalProvider({ children }: { children: ReactNode }) 
                 <NLPTransactionInput
                     onClose={() => setIsNLPOpen(false)}
                     onSuccess={() => {
-                        // Could trigger refresh here
+                        triggerRefresh()  // Trigger refresh when NLP transaction is added
                     }}
                 />
             )}
@@ -117,3 +125,4 @@ export function useTransactionModal() {
     }
     return context
 }
+
