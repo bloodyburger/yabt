@@ -48,10 +48,12 @@ export default function Accounts() {
 
     const getAccountIcon = (type: string) => {
         switch (type) {
-            case 'credit':
+            case 'credit_card':
                 return <CreditCard className="w-5 h-5" />
             case 'savings':
                 return <Building className="w-5 h-5" />
+            case 'loan':
+                return <CreditCard className="w-5 h-5" />
             default:
                 return <Wallet className="w-5 h-5" />
         }
@@ -238,9 +240,10 @@ function AddAccountModal({ budgetId, onClose }: { budgetId: string; onClose: () 
                             <select value={accountType} onChange={(e) => setAccountType(e.target.value)} className="input">
                                 <option value="checking">Checking</option>
                                 <option value="savings">Savings</option>
-                                <option value="credit">Credit Card</option>
+                                <option value="credit_card">Credit Card</option>
                                 <option value="cash">Cash</option>
-                                <option value="other">Other</option>
+                                <option value="loan">Loan</option>
+                                <option value="tracking">Tracking / Other</option>
                             </select>
                         </div>
 

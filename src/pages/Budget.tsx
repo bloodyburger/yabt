@@ -61,6 +61,8 @@ export default function Budget() {
     const [editValue, setEditValue] = useState('')
     const [saving, setSaving] = useState(false)
     const [activityCategory, setActivityCategory] = useState<{ id: string; name: string } | null>(null)
+    const [showAddGroupModal, setShowAddGroupModal] = useState(false)
+    const [addingCategoryToGroup, setAddingCategoryToGroup] = useState<string | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
     // Helper to get budget month date range based on monthStartDay setting
@@ -259,7 +261,6 @@ export default function Budget() {
             const totalBalance = onBudgetAccounts.reduce((sum, a) => sum + Number(a.balance), 0)
 
             // Get updated total budgeted
-            const categoryIds = categoryGroups.flatMap(g => g.categories?.map(c => c.id) || [])
             const updatedBudgets = await dataService.getMonthlyBudgets(currentBudget.id, monthStr)
             const totalBudgeted = updatedBudgets.reduce((sum, b) => sum + Number(b.budgeted), 0)
             setReadyToAssign(totalBalance - totalBudgeted)
@@ -301,6 +302,15 @@ export default function Budget() {
                         <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                     </button>
                 </div>
+
+                {/* Add Category Group Button */}
+                <button
+                    onClick={() => setShowAddGroupModal(true)}
+                    className="btn btn-primary"
+                >
+                    <Plus className="w-4 h-4" />
+                    Add Group
+                </button>
             </div>
 
             {/* Ready to Assign */}
@@ -343,16 +353,23 @@ export default function Budget() {
                         <div key={group.id}>
                             {/* Group Header */}
                             <div
-                                onClick={() => toggleGroup(group.id)}
                                 className="grid grid-cols-12 gap-4 px-4 py-3 bg-slate-100 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-colors"
                             >
-                                <div className="col-span-5 flex items-center gap-2">
+                                <div className="col-span-5 flex items-center gap-2" onClick={() => toggleGroup(group.id)}>
                                     {expandedGroups.has(group.id) ? (
                                         <ChevronUp className="w-4 h-4 text-slate-500" />
                                     ) : (
                                         <ChevronDown className="w-4 h-4 text-slate-500" />
                                     )}
                                     <span className="font-semibold text-slate-700 dark:text-slate-200">{group.name}</span>
+                                </div>
+                                <div className="col-span-7 flex justify-end">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setAddingCategoryToGroup(group.id); }}
+                                        className="text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors"
+                                    >
+                                        + Add Category
+                                    </button>
                                 </div>
                             </div>
 
@@ -424,6 +441,175 @@ export default function Budget() {
                     onClose={() => setActivityCategory(null)}
                 />
             )}
+
+            {/* Add Category Group Modal */}
+            {showAddGroupModal && currentBudget && (
+                <AddCategoryGroupModal
+                    budgetId={currentBudget.id}
+                    dataService={dataService}
+                    onClose={() => { setShowAddGroupModal(false); fetchBudgetData(); }}
+                />
+            )}
+
+            {/* Add Category Modal */}
+            {addingCategoryToGroup && (
+                <AddCategoryModal
+                    groupId={addingCategoryToGroup}
+                    dataService={dataService}
+                    onClose={() => { setAddingCategoryToGroup(null); fetchBudgetData(); }}
+                />
+            )}
         </div>
     )
 }
+
+// ============== Add Category Group Modal ==============
+interface AddCategoryGroupModalProps {
+    budgetId: string
+    dataService: ReturnType<typeof useDataService>
+    onClose: () => void
+}
+
+function AddCategoryGroupModal({ budgetId, dataService, onClose }: AddCategoryGroupModalProps) {
+    const [name, setName] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!name.trim()) return
+
+        setLoading(true)
+        setError('')
+
+        try {
+            await dataService.createCategoryGroup({
+                budget_id: budgetId,
+                name: name.trim(),
+                hidden: false,
+                sort_order: 0
+            })
+            onClose()
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create category group')
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+            <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md animate-fade-in">
+                <div className="p-6">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Add Category Group</h2>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {error && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+                                {error}
+                            </div>
+                        )}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                Group Name
+                            </label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="e.g., Fixed Expenses, Savings Goals"
+                                className="input"
+                                autoFocus
+                                required
+                            />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={loading || !name.trim()} className="btn btn-primary flex-1">
+                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Group'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ============== Add Category Modal ==============
+interface AddCategoryModalProps {
+    groupId: string
+    dataService: ReturnType<typeof useDataService>
+    onClose: () => void
+}
+
+function AddCategoryModal({ groupId, dataService, onClose }: AddCategoryModalProps) {
+    const [name, setName] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!name.trim()) return
+
+        setLoading(true)
+        setError('')
+
+        try {
+            await dataService.createCategory({
+                category_group_id: groupId,
+                name: name.trim(),
+                target_type: null,
+                target_amount: null,
+                target_date: null,
+                sort_order: 0
+            })
+            onClose()
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create category')
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+            <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md animate-fade-in">
+                <div className="p-6">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Add Category</h2>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {error && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+                                {error}
+                            </div>
+                        )}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                Category Name
+                            </label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="e.g., Rent, Groceries, Entertainment"
+                                className="input"
+                                autoFocus
+                                required
+                            />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={loading || !name.trim()} className="btn btn-primary flex-1">
+                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Category'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    )
+}
+
