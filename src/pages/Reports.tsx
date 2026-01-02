@@ -1,8 +1,14 @@
+/**
+ * Reports Page
+ * Spending analytics and trends
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect } from 'react'
 import { TrendingUp, PieChart, BarChart3, Calendar, ChevronDown } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useDataService } from '@/contexts/DataContext'
 import { formatMoney } from '@/lib/formatMoney'
 
 interface CategorySpending {
@@ -26,6 +32,7 @@ const COLORS = [
 export default function Reports() {
     const { currentBudget } = useBudget()
     const { currency } = useSettings()
+    const dataService = useDataService()
 
     const [dateRange, setDateRange] = useState('month')
     const [categorySpending, setCategorySpending] = useState<CategorySpending[]>([])
@@ -36,7 +43,7 @@ export default function Reports() {
     useEffect(() => {
         if (!currentBudget) return
         fetchReportData()
-    }, [currentBudget, dateRange])
+    }, [currentBudget, dateRange, dataService])
 
     const getDateRange = () => {
         const now = new Date()
@@ -69,27 +76,28 @@ export default function Reports() {
         if (!currentBudget) return
         setLoading(true)
 
-        const { start, end } = getDateRange()
+        try {
+            const { start, end } = getDateRange()
 
-        // Fetch transactions with category info
-        const { data: transactions } = await supabase
-            .from('transactions')
-            .select(`
-                amount,
-                date,
-                category_id,
-                categories(name, category_groups(name))
-            `)
-            .gte('date', start)
-            .lte('date', end)
-            .in('account_id', await getAccountIds())
+            // Get all transactions for budget
+            const allTransactions = await dataService.getTransactionsByBudget(currentBudget.id)
 
-        if (transactions) {
+            // Filter by date range
+            const transactions = allTransactions.filter(
+                t => t.date >= start && t.date <= end
+            )
+
+            // Get categories for name mapping
+            const categories = await dataService.getCategories(currentBudget.id)
+            const categoryGroups = await dataService.getCategoryGroups(currentBudget.id)
+            const categoryMap = new Map(categories.map(c => [c.id, c]))
+            const groupMap = new Map(categoryGroups.map(g => [g.id, g]))
+
             // Calculate totals
             let income = 0
             let expenses = 0
 
-            transactions.forEach((t: any) => {
+            transactions.forEach(t => {
                 if (t.amount > 0) {
                     income += t.amount
                 } else {
@@ -100,35 +108,36 @@ export default function Reports() {
             setTotals({ income, expenses })
 
             // Group by category
-            const categoryMap = new Map<string, CategorySpending>()
+            const spendingMap = new Map<string, CategorySpending>()
 
-            transactions.forEach((t: any, index: number) => {
+            transactions.forEach(t => {
                 if (t.amount < 0) {
-                    const catName = t.categories?.name || 'Uncategorized'
-                    const groupName = t.categories?.category_groups?.name || 'Other'
-                    const key = catName
+                    const category = t.category_id ? categoryMap.get(t.category_id) : null
+                    const catName = category?.name || 'Uncategorized'
+                    const group = category ? groupMap.get(category.category_group_id) : null
+                    const groupName = group?.name || 'Other'
 
-                    if (categoryMap.has(key)) {
-                        categoryMap.get(key)!.total += Math.abs(t.amount)
+                    if (spendingMap.has(catName)) {
+                        spendingMap.get(catName)!.total += Math.abs(t.amount)
                     } else {
-                        categoryMap.set(key, {
+                        spendingMap.set(catName, {
                             category_name: catName,
                             category_group: groupName,
                             total: Math.abs(t.amount),
-                            color: COLORS[categoryMap.size % COLORS.length]
+                            color: COLORS[spendingMap.size % COLORS.length]
                         })
                     }
                 }
             })
 
-            const spending = Array.from(categoryMap.values())
+            const spending = Array.from(spendingMap.values())
                 .sort((a, b) => b.total - a.total)
             setCategorySpending(spending)
 
             // Group by month for trend
             const monthMap = new Map<string, MonthlyTrend>()
 
-            transactions.forEach((t: any) => {
+            transactions.forEach(t => {
                 const monthKey = t.date.substring(0, 7)
 
                 if (!monthMap.has(monthKey)) {
@@ -145,18 +154,11 @@ export default function Reports() {
             const trend = Array.from(monthMap.values())
                 .sort((a, b) => a.month.localeCompare(b.month))
             setMonthlyTrend(trend)
+        } catch (error) {
+            console.error('Error fetching report data:', error)
+        } finally {
+            setLoading(false)
         }
-
-        setLoading(false)
-    }
-
-    const getAccountIds = async (): Promise<string[]> => {
-        const { data: accounts } = await supabase
-            .from('accounts')
-            .select('id')
-            .eq('budget_id', currentBudget!.id)
-
-        return accounts?.map(a => a.id) || []
     }
 
     const formatMonthLabel = (month: string) => {
@@ -246,7 +248,7 @@ export default function Reports() {
                             <p className="text-slate-500 text-center py-8">No spending data available</p>
                         ) : (
                             <div className="space-y-3">
-                                {categorySpending.slice(0, 8).map((cat, index) => {
+                                {categorySpending.slice(0, 8).map((cat) => {
                                     const percentage = totalSpending > 0 ? (cat.total / totalSpending) * 100 : 0
                                     return (
                                         <div key={cat.category_name}>

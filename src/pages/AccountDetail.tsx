@@ -1,13 +1,19 @@
+/**
+ * Account Detail Page
+ * Shows transactions for a specific account
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Check, Search, ArrowUpRight, ArrowDownLeft, Loader2, Tag, X } from 'lucide-react'
-import { supabase, logger } from '@/lib/supabase'
 import { useSettings } from '@/contexts/SettingsContext'
 import { formatMoney } from '@/lib/formatMoney'
 import { useTransactionModal } from '@/contexts/TransactionModalContext'
 import EditTransactionModal from '@/components/common/EditTransactionModal'
 import { TransactionTags } from '@/components/common/TagManager'
 import { useBudget } from '@/contexts/BudgetContext'
+import { useData } from '@/contexts/DataContext'
 
 interface Transaction {
     id: string
@@ -19,8 +25,8 @@ interface Transaction {
     amount: number
     memo: string | null
     cleared: boolean
-    payee: { name: string } | null
-    category: { name: string } | null
+    payeeName?: string
+    categoryName?: string
 }
 
 interface Account {
@@ -40,6 +46,7 @@ export default function AccountDetail() {
     const { currency, dateFormat } = useSettings()
     const { openTransactionModal } = useTransactionModal()
     const { currentBudget } = useBudget()
+    const { dataService, isInitialized } = useData()
 
     const [account, setAccount] = useState<Account | null>(null)
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -51,106 +58,86 @@ export default function AccountDetail() {
     const [availableTags, setAvailableTags] = useState<TagItem[]>([])
     const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null)
 
+    // Fetch data when account ID changes and service is initialized
     useEffect(() => {
-        if (!id) return
+        if (!id || !isInitialized) return
         fetchData()
-    }, [id])
+    }, [id, isInitialized, dataService])
 
+    // Fetch available tags when budget changes and service is initialized
     useEffect(() => {
-        if (currentBudget) {
+        if (currentBudget && isInitialized) {
             fetchTags()
         }
-    }, [currentBudget])
+    }, [currentBudget, isInitialized, dataService])
 
     const fetchTags = async () => {
         if (!currentBudget) return
-        const { data } = await supabase
-            .from('tags')
-            .select('id, name, color')
-            .eq('budget_id', currentBudget.id)
-            .order('name')
-        if (data) setAvailableTags(data)
+        try {
+            const tags = await dataService.getTags(currentBudget.id)
+            setAvailableTags(tags as TagItem[])
+        } catch (error) {
+            console.error('Failed to fetch tags:', error)
+        }
     }
 
     const fetchData = async () => {
-        if (!id) {
-            logger.warn('AccountDetail: No account ID provided')
-            return
-        }
+        if (!id) return
 
-        logger.info('AccountDetail: Fetching data for account', { accountId: id })
+        try {
+            // Fetch account details
+            const accountData = await dataService.getAccount(id)
+            setAccount(accountData as Account | null)
 
-        // Fetch account details
-        const { data: accountData, error: accountError } = await supabase
-            .from('accounts')
-            .select('id, name, balance')
-            .eq('id', id)
-            .single()
+            // Fetch transactions
+            const txData = await dataService.getTransactions(id)
 
-        logger.table('accounts', 'SELECT', { id }, { data: accountData, error: accountError })
+            // Fetch payee and category names for display
+            if (currentBudget) {
+                const payees = await dataService.getPayees(currentBudget.id)
+                const categories = await dataService.getCategories(currentBudget.id)
 
-        if (accountError) {
-            logger.error('Failed to fetch account', accountError)
-        }
-        setAccount(accountData)
+                const payeeMap = new Map(payees.map(p => [p.id, p.name]))
+                const categoryMap = new Map(categories.map(c => [c.id, c.name]))
 
-        // Fetch transactions
-        logger.info('AccountDetail: Fetching transactions for account', { accountId: id })
+                const enrichedTx = txData.map(tx => ({
+                    ...tx,
+                    payeeName: tx.payee_id ? payeeMap.get(tx.payee_id) : undefined,
+                    categoryName: tx.category_id ? categoryMap.get(tx.category_id) : undefined
+                }))
+                setTransactions(enrichedTx as Transaction[])
+            } else {
+                setTransactions(txData as Transaction[])
+            }
 
-        const { data: txData, error: txError, count } = await supabase
-            .from('transactions')
-            .select('id, account_id, category_id, payee_id, transfer_account_id, date, amount, memo, cleared, payee:payees(name), category:categories(name)', { count: 'exact' })
-            .eq('account_id', id)
-            .order('date', { ascending: false })
-            .order('created_at', { ascending: false })
-
-        logger.table('transactions', 'SELECT', { account_id: id }, { data: txData, error: txError, count: count ?? undefined })
-
-        if (txError) {
-            logger.error('Failed to fetch transactions', txError)
-        }
-
-        logger.info('AccountDetail: Loaded transactions', {
-            count: txData?.length ?? 0,
-            accountId: id,
-            firstTransaction: txData?.[0] ?? null
-        })
-
-        setTransactions(txData || [])
-
-        // Fetch tags for all transactions
-        if (txData && txData.length > 0) {
-            const txIds = txData.map((t: Transaction) => t.id)
-            const { data: tagLinks } = await supabase
-                .from('transaction_tags')
-                .select('transaction_id, tag_id')
-                .in('transaction_id', txIds)
-
-            if (tagLinks) {
+            // Fetch tags for all transactions
+            if (txData.length > 0) {
                 const tagsMap: Record<string, string[]> = {}
-                tagLinks.forEach((link: { transaction_id: string; tag_id: string }) => {
-                    if (!tagsMap[link.transaction_id]) {
-                        tagsMap[link.transaction_id] = []
+                for (const tx of txData) {
+                    const tagIds = await dataService.getTransactionTags(tx.id)
+                    if (tagIds.length > 0) {
+                        tagsMap[tx.id] = tagIds
                     }
-                    tagsMap[link.transaction_id].push(link.tag_id)
-                })
+                }
                 setTransactionTagsMap(tagsMap)
             }
+        } catch (error) {
+            console.error('Failed to fetch account data:', error)
+        } finally {
+            setLoading(false)
         }
-
-        setLoading(false)
     }
 
     const toggleCleared = async (e: React.MouseEvent, transactionId: string, currentCleared: boolean) => {
-        e.stopPropagation() // Prevent row click
-        await supabase
-            .from('transactions')
-            .update({ cleared: !currentCleared })
-            .eq('id', transactionId)
-
-        setTransactions(prev =>
-            prev.map(t => t.id === transactionId ? { ...t, cleared: !currentCleared } : t)
-        )
+        e.stopPropagation()
+        try {
+            await dataService.updateTransaction(transactionId, { cleared: !currentCleared })
+            setTransactions(prev =>
+                prev.map(t => t.id === transactionId ? { ...t, cleared: !currentCleared } : t)
+            )
+        } catch (error) {
+            console.error('Failed to toggle cleared:', error)
+        }
     }
 
     const formatDate = (dateStr: string) => {
@@ -170,8 +157,8 @@ export default function AccountDetail() {
         if (searchQuery) {
             const q = searchQuery.toLowerCase()
             const matchesSearch = (
-                t.payee?.name?.toLowerCase().includes(q) ||
-                t.category?.name?.toLowerCase().includes(q) ||
+                t.payeeName?.toLowerCase().includes(q) ||
+                t.categoryName?.toLowerCase().includes(q) ||
                 t.memo?.toLowerCase().includes(q)
             )
             if (!matchesSearch) return false
@@ -303,14 +290,14 @@ export default function AccountDetail() {
                             </div>
                             <div className="col-span-3">
                                 <p className="font-medium text-slate-900 dark:text-white truncate">
-                                    {transaction.payee?.name || 'No payee'}
+                                    {transaction.payeeName || 'No payee'}
                                 </p>
                                 {transaction.memo && (
                                     <p className="text-xs text-slate-500 truncate">{transaction.memo}</p>
                                 )}
                             </div>
                             <div className="col-span-2 text-sm text-slate-600 dark:text-slate-300">
-                                {transaction.category?.name || (transaction.amount > 0 ? 'Income' : 'Uncategorized')}
+                                {transaction.categoryName || (transaction.amount > 0 ? 'Income' : 'Uncategorized')}
                             </div>
                             <div className="col-span-2">
                                 <TransactionTags key={`tags-${transaction.id}-${tagsRefreshKey}`} transactionId={transaction.id} />

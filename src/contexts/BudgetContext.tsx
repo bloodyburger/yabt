@@ -1,12 +1,18 @@
+/**
+ * Budget Context
+ * Manages the current budget selection and budget CRUD operations
+ * Uses DataService from DataContext for storage abstraction
+ */
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from './AuthContext'
+import { useData } from './DataContext'
 
 interface Budget {
     id: string
     user_id: string
     name: string
-    currency_code: string
+    currency: string
     created_at: string
 }
 
@@ -25,35 +31,39 @@ const SELECTED_BUDGET_KEY = 'selectedBudgetId'
 
 export function BudgetProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth()
+    const { dataService, isInitialized } = useData()
     const [currentBudget, setCurrentBudget] = useState<Budget | null>(null)
     const [allBudgets, setAllBudgets] = useState<Budget[]>([])
     const [loading, setLoading] = useState(true)
 
     const fetchBudgets = async () => {
-        if (!user) {
+        if (!user || !isInitialized) {
             setLoading(false)
             return
         }
 
-        const { data } = await supabase
-            .from('budgets')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true })
+        setLoading(true)
+        try {
+            const budgets = await dataService.getBudgets()
+            setAllBudgets(budgets as Budget[])
 
-        const budgets = data || []
-        setAllBudgets(budgets)
-
-        // Get selected budget from localStorage or use first
-        const savedBudgetId = localStorage.getItem(SELECTED_BUDGET_KEY)
-        const selected = budgets.find(b => b.id === savedBudgetId) || budgets[0] || null
-        setCurrentBudget(selected)
-        setLoading(false)
+            // Get selected budget from localStorage or use first
+            const savedBudgetId = localStorage.getItem(SELECTED_BUDGET_KEY)
+            const selected = budgets.find(b => b.id === savedBudgetId) || budgets[0] || null
+            setCurrentBudget(selected as Budget | null)
+        } catch (error) {
+            console.error('Failed to fetch budgets:', error)
+        } finally {
+            setLoading(false)
+        }
     }
 
     useEffect(() => {
-        fetchBudgets()
-    }, [user])
+        // Only fetch when user exists AND data service is initialized
+        if (user && isInitialized) {
+            fetchBudgets()
+        }
+    }, [user, isInitialized, dataService])
 
     const switchBudget = (budgetId: string) => {
         const budget = allBudgets.find(b => b.id === budgetId)
@@ -63,26 +73,24 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    const createBudget = async (name: string) => {
+    const createBudget = async (name: string): Promise<{ data: Budget | null; error: Error | null }> => {
         if (!user) return { data: null, error: new Error('Not authenticated') }
 
-        const { data, error } = await supabase
-            .from('budgets')
-            .insert({
+        try {
+            const budget = await dataService.createBudget({
                 user_id: user.id,
                 name,
-                currency_code: currentBudget?.currency_code || 'USD'
+                currency: currentBudget?.currency || 'USD'
             })
-            .select()
-            .single()
 
-        if (data) {
-            setAllBudgets(prev => [...prev, data])
-            setCurrentBudget(data)
-            localStorage.setItem(SELECTED_BUDGET_KEY, data.id)
+            setAllBudgets(prev => [...prev, budget as Budget])
+            setCurrentBudget(budget as Budget)
+            localStorage.setItem(SELECTED_BUDGET_KEY, budget.id)
+
+            return { data: budget as Budget, error: null }
+        } catch (error) {
+            return { data: null, error: error as Error }
         }
-
-        return { data, error }
     }
 
     return (

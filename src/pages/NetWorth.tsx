@@ -1,16 +1,22 @@
+/**
+ * Net Worth Page
+ * Track assets, liabilities, and net worth over time
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect } from 'react'
 import { Wallet, TrendingUp, TrendingDown, Building2, CreditCard, PiggyBank, Landmark } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
-import { formatMoney, getMoneyColorClass } from '@/lib/formatMoney'
+import { useDataService } from '@/contexts/DataContext'
+import { formatMoney } from '@/lib/formatMoney'
 
-interface Account {
+interface AccountDisplay {
     id: string
     name: string
-    account_type: string
+    type: string
     balance: number
-    is_on_budget: boolean
+    on_budget: boolean
 }
 
 interface NetWorthSnapshot {
@@ -35,136 +41,144 @@ const LIABILITY_TYPES = ['credit', 'loan', 'mortgage', 'line_of_credit']
 export default function NetWorth() {
     const { currentBudget } = useBudget()
     const { currency } = useSettings()
+    const dataService = useDataService()
 
-    const [accounts, setAccounts] = useState<Account[]>([])
+    const [accounts, setAccounts] = useState<AccountDisplay[]>([])
     const [snapshots, setSnapshots] = useState<NetWorthSnapshot[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         if (!currentBudget) return
         fetchNetWorthData()
-    }, [currentBudget])
+    }, [currentBudget, dataService])
 
     const fetchNetWorthData = async () => {
         if (!currentBudget) return
         setLoading(true)
 
-        // Fetch all accounts
-        const { data: accountData } = await supabase
-            .from('accounts')
-            .select('id, name, account_type, balance, is_on_budget')
-            .eq('budget_id', currentBudget.id)
-            .eq('closed', false)
-            .order('name')
+        try {
+            // Fetch all accounts
+            const accountData = await dataService.getAccounts(currentBudget.id)
+            const openAccounts = accountData.filter(a => !a.closed)
 
-        if (accountData) {
-            setAccounts(accountData)
-        }
+            const displayAccounts: AccountDisplay[] = openAccounts.map(a => ({
+                id: a.id,
+                name: a.name,
+                type: a.type,
+                balance: a.balance,
+                on_budget: a.on_budget
+            }))
+            setAccounts(displayAccounts)
 
-        // Generate net worth snapshots from transactions
-        // Group transactions by month to calculate running balance
-        const { data: transactions } = await supabase
-            .from('transactions')
-            .select('date, amount, accounts!inner(budget_id, account_type)')
-            .eq('accounts.budget_id', currentBudget.id)
-            .order('date')
+            // Fetch all transactions to generate net worth snapshots
+            const transactions = await dataService.getTransactionsByBudget(currentBudget.id)
 
-        if (transactions && transactions.length > 0) {
-            // Get starting balances (current balance minus all transactions)
-            const startingBalances: Record<string, number> = {}
-            accountData?.forEach(acc => {
-                startingBalances[acc.account_type] = (startingBalances[acc.account_type] || 0) + acc.balance
-            })
+            if (transactions.length > 0) {
+                // Get starting balances (current balance minus all transactions)
+                const startingBalances: Record<string, number> = {}
+                displayAccounts.forEach(acc => {
+                    startingBalances[acc.type] = (startingBalances[acc.type] || 0) + acc.balance
+                })
 
-            // Work backwards to get starting balance
-            const totalTransactionsByType: Record<string, number> = {}
-            transactions.forEach((t: any) => {
-                const type = t.accounts?.account_type || 'checking'
-                totalTransactionsByType[type] = (totalTransactionsByType[type] || 0) + t.amount
-            })
+                // Work backwards to get starting balance
+                const totalTransactionsByType: Record<string, number> = {}
 
-            // Generate monthly snapshots
-            const monthMap = new Map<string, { assets: number, liabilities: number }>()
-            const runningBalances: Record<string, number> = {}
+                // Need to map transactions to account types
+                const accountTypeMap = new Map(displayAccounts.map(a => [a.id, a.type]))
 
-            // Initialize with starting balances minus all future transactions
-            Object.entries(startingBalances).forEach(([type, balance]) => {
-                runningBalances[type] = balance - (totalTransactionsByType[type] || 0)
-            })
+                transactions.forEach(t => {
+                    const type = accountTypeMap.get(t.account_id) || 'checking'
+                    totalTransactionsByType[type] = (totalTransactionsByType[type] || 0) + t.amount
+                })
 
-            transactions.forEach((t: any) => {
-                const monthKey = t.date.substring(0, 7)
-                const type = t.accounts?.account_type || 'checking'
+                // Generate monthly snapshots
+                const monthMap = new Map<string, { assets: number, liabilities: number }>()
+                const runningBalances: Record<string, number> = {}
 
-                runningBalances[type] = (runningBalances[type] || 0) + t.amount
+                // Initialize with starting balances minus all future transactions
+                Object.entries(startingBalances).forEach(([type, balance]) => {
+                    runningBalances[type] = balance - (totalTransactionsByType[type] || 0)
+                })
 
-                if (!monthMap.has(monthKey)) {
-                    monthMap.set(monthKey, { assets: 0, liabilities: 0 })
-                }
+                // Sort transactions by date
+                const sortedTransactions = [...transactions].sort((a, b) => a.date.localeCompare(b.date))
 
-                // Calculate totals for this point
+                sortedTransactions.forEach(t => {
+                    const monthKey = t.date.substring(0, 7)
+                    const type = accountTypeMap.get(t.account_id) || 'checking'
+
+                    runningBalances[type] = (runningBalances[type] || 0) + t.amount
+
+                    if (!monthMap.has(monthKey)) {
+                        monthMap.set(monthKey, { assets: 0, liabilities: 0 })
+                    }
+
+                    // Calculate totals for this point
+                    let assets = 0
+                    let liabilities = 0
+
+                    Object.entries(runningBalances).forEach(([accType, balance]) => {
+                        if (ASSET_TYPES.includes(accType)) {
+                            assets += balance
+                        } else if (LIABILITY_TYPES.includes(accType)) {
+                            liabilities += Math.abs(balance)
+                        }
+                    })
+
+                    monthMap.set(monthKey, { assets, liabilities })
+                })
+
+                // Convert to array
+                const snapshotData = Array.from(monthMap.entries())
+                    .map(([date, data]) => ({
+                        date,
+                        assets: data.assets,
+                        liabilities: data.liabilities,
+                        netWorth: data.assets - data.liabilities
+                    }))
+                    .sort((a, b) => a.date.localeCompare(b.date))
+
+                setSnapshots(snapshotData)
+            } else {
+                // No transactions, just use current balances
                 let assets = 0
                 let liabilities = 0
 
-                Object.entries(runningBalances).forEach(([accType, balance]) => {
-                    if (ASSET_TYPES.includes(accType)) {
-                        assets += balance
-                    } else if (LIABILITY_TYPES.includes(accType)) {
-                        liabilities += Math.abs(balance)
+                displayAccounts.forEach(acc => {
+                    if (ASSET_TYPES.includes(acc.type)) {
+                        assets += acc.balance
+                    } else if (LIABILITY_TYPES.includes(acc.type)) {
+                        liabilities += Math.abs(acc.balance)
                     }
                 })
 
-                monthMap.set(monthKey, { assets, liabilities })
-            })
-
-            // Convert to array
-            const snapshotData = Array.from(monthMap.entries())
-                .map(([date, data]) => ({
-                    date,
-                    assets: data.assets,
-                    liabilities: data.liabilities,
-                    netWorth: data.assets - data.liabilities
-                }))
-                .sort((a, b) => a.date.localeCompare(b.date))
-
-            setSnapshots(snapshotData)
-        } else {
-            // No transactions, just use current balances
-            let assets = 0
-            let liabilities = 0
-
-            accountData?.forEach(acc => {
-                if (ASSET_TYPES.includes(acc.account_type)) {
-                    assets += acc.balance
-                } else if (LIABILITY_TYPES.includes(acc.account_type)) {
-                    liabilities += Math.abs(acc.balance)
-                }
-            })
-
-            const now = new Date()
-            setSnapshots([{
-                date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
-                assets,
-                liabilities,
-                netWorth: assets - liabilities
-            }])
+                const now = new Date()
+                setSnapshots([{
+                    date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+                    assets,
+                    liabilities,
+                    netWorth: assets - liabilities
+                }])
+            }
+        } catch (error) {
+            console.error('Error fetching net worth data:', error)
+        } finally {
+            setLoading(false)
         }
-
-        setLoading(false)
     }
 
     const totalAssets = accounts
-        .filter(a => ASSET_TYPES.includes(a.account_type))
+        .filter(a => ASSET_TYPES.includes(a.type))
         .reduce((sum, a) => sum + a.balance, 0)
 
     const totalLiabilities = accounts
-        .filter(a => LIABILITY_TYPES.includes(a.account_type))
+        .filter(a => LIABILITY_TYPES.includes(a.type))
         .reduce((sum, a) => sum + Math.abs(a.balance), 0)
 
     const netWorth = totalAssets - totalLiabilities
 
-    const assetAccounts = accounts.filter(a => ASSET_TYPES.includes(a.account_type))
-    const liabilityAccounts = accounts.filter(a => LIABILITY_TYPES.includes(a.account_type))
+    const assetAccounts = accounts.filter(a => ASSET_TYPES.includes(a.type))
+    const liabilityAccounts = accounts.filter(a => LIABILITY_TYPES.includes(a.type))
 
     const formatMonthLabel = (month: string) => {
         const [year, m] = month.split('-')
@@ -233,7 +247,7 @@ export default function NetWorth() {
                         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 mb-6">
                             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Net Worth Over Time</h2>
                             <div className="h-48 flex items-end gap-2">
-                                {snapshots.slice(-12).map((snapshot, index) => {
+                                {snapshots.slice(-12).map((snapshot) => {
                                     const maxNW = Math.max(...snapshots.map(s => Math.abs(s.netWorth)))
                                     const height = maxNW > 0 ? (Math.abs(snapshot.netWorth) / maxNW) * 100 : 0
                                     const isPositive = snapshot.netWorth >= 0
@@ -273,11 +287,11 @@ export default function NetWorth() {
                                         <div key={account.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                                                    {getIcon(account.account_type)}
+                                                    {getIcon(account.type)}
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-slate-900 dark:text-white">{account.name}</p>
-                                                    <p className="text-xs text-slate-500 capitalize">{account.account_type}</p>
+                                                    <p className="text-xs text-slate-500 capitalize">{account.type}</p>
                                                 </div>
                                             </div>
                                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">
@@ -304,11 +318,11 @@ export default function NetWorth() {
                                         <div key={account.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center text-red-600 dark:text-red-400">
-                                                    {getIcon(account.account_type)}
+                                                    {getIcon(account.type)}
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-slate-900 dark:text-white">{account.name}</p>
-                                                    <p className="text-xs text-slate-500 capitalize">{account.account_type}</p>
+                                                    <p className="text-xs text-slate-500 capitalize">{account.type}</p>
                                                 </div>
                                             </div>
                                             <span className="font-semibold text-red-600 dark:text-red-400">

@@ -1,7 +1,13 @@
+/**
+ * Tag Manager
+ * Manage and select tags for transactions
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect } from 'react'
 import { Tag, Plus, X, Check, Palette } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
+import { useDataService } from '@/contexts/DataContext'
 
 interface TagItem {
     id: string
@@ -25,6 +31,7 @@ const COLORS = [
 
 export default function TagManager({ transactionId, selectedTagIds = [], onTagsChange, mode = 'select' }: TagManagerProps) {
     const { currentBudget } = useBudget()
+    const dataService = useDataService()
     const [tags, setTags] = useState<TagItem[]>([])
     const [selected, setSelected] = useState<string[]>(selectedTagIds)
     const [loading, setLoading] = useState(true)
@@ -37,26 +44,23 @@ export default function TagManager({ transactionId, selectedTagIds = [], onTagsC
         if (currentBudget) {
             fetchTags()
         }
-    }, [currentBudget])
+    }, [currentBudget, dataService])
 
     useEffect(() => {
         if (transactionId) {
             fetchTransactionTags()
         }
-    }, [transactionId])
+    }, [transactionId, dataService])
 
     const fetchTags = async () => {
         if (!currentBudget) return
         setLoading(true)
 
-        const { data } = await supabase
-            .from('tags')
-            .select('id, name, color')
-            .eq('budget_id', currentBudget.id)
-            .order('name')
-
-        if (data) {
-            setTags(data)
+        try {
+            const data = await dataService.getTags(currentBudget.id)
+            setTags(data.map(t => ({ id: t.id, name: t.name, color: t.color })))
+        } catch (error) {
+            console.error('Error fetching tags:', error)
         }
         setLoading(false)
     }
@@ -64,13 +68,11 @@ export default function TagManager({ transactionId, selectedTagIds = [], onTagsC
     const fetchTransactionTags = async () => {
         if (!transactionId) return
 
-        const { data } = await supabase
-            .from('transaction_tags')
-            .select('tag_id')
-            .eq('transaction_id', transactionId)
-
-        if (data) {
-            setSelected(data.map((t: { tag_id: string }) => t.tag_id))
+        try {
+            const tagIds = await dataService.getTransactionTags(transactionId)
+            setSelected(tagIds)
+        } catch (error) {
+            console.error('Error fetching transaction tags:', error)
         }
     }
 
@@ -78,33 +80,28 @@ export default function TagManager({ transactionId, selectedTagIds = [], onTagsC
         if (!currentBudget || !newTagName.trim()) return
         setCreating(true)
 
-        const { data, error } = await supabase
-            .from('tags')
-            .insert({
+        try {
+            const newTag = await dataService.createTag({
                 budget_id: currentBudget.id,
                 name: newTagName.trim(),
                 color: newTagColor
             })
-            .select()
-            .single()
-
-        if (data && !error) {
-            setTags([...tags, data])
+            setTags([...tags, { id: newTag.id, name: newTag.name, color: newTag.color }])
             setNewTagName('')
             setShowCreate(false)
+        } catch (error) {
+            console.error('Error creating tag:', error)
         }
         setCreating(false)
     }
 
     const deleteTag = async (tagId: string) => {
-        const { error } = await supabase
-            .from('tags')
-            .delete()
-            .eq('id', tagId)
-
-        if (!error) {
+        try {
+            await dataService.deleteTag(tagId)
             setTags(tags.filter(t => t.id !== tagId))
             setSelected(selected.filter(id => id !== tagId))
+        } catch (error) {
+            console.error('Error deleting tag:', error)
         }
     }
 
@@ -117,19 +114,14 @@ export default function TagManager({ transactionId, selectedTagIds = [], onTagsC
         setSelected(newSelected)
 
         if (transactionId) {
-            if (isSelected) {
-                await supabase
-                    .from('transaction_tags')
-                    .delete()
-                    .eq('transaction_id', transactionId)
-                    .eq('tag_id', tagId)
-            } else {
-                await supabase
-                    .from('transaction_tags')
-                    .insert({
-                        transaction_id: transactionId,
-                        tag_id: tagId
-                    })
+            try {
+                if (isSelected) {
+                    await dataService.removeTransactionTag(transactionId, tagId)
+                } else {
+                    await dataService.addTransactionTag(transactionId, tagId)
+                }
+            } catch (error) {
+                console.error('Error updating transaction tag:', error)
             }
         }
 
@@ -264,20 +256,33 @@ export default function TagManager({ transactionId, selectedTagIds = [], onTagsC
 
 // Compact tag display for transaction rows
 export function TransactionTags({ transactionId }: { transactionId: string }) {
+    const { currentBudget } = useBudget()
+    const dataService = useDataService()
     const [tags, setTags] = useState<TagItem[]>([])
 
     useEffect(() => {
         fetchTransactionTags()
-    }, [transactionId])
+    }, [transactionId, dataService, currentBudget])
 
     const fetchTransactionTags = async () => {
-        const { data } = await supabase
-            .from('transaction_tags')
-            .select('tags(id, name, color)')
-            .eq('transaction_id', transactionId)
+        if (!currentBudget) return
 
-        if (data) {
-            setTags(data.map((t: any) => t.tags).filter(Boolean))
+        try {
+            // Get tag IDs for this transaction
+            const tagIds = await dataService.getTransactionTags(transactionId)
+
+            if (tagIds.length > 0) {
+                // Get all tags for the budget and filter to the ones we need
+                const allTags = await dataService.getTags(currentBudget.id)
+                const transactionTags = allTags
+                    .filter(t => tagIds.includes(t.id))
+                    .map(t => ({ id: t.id, name: t.name, color: t.color }))
+                setTags(transactionTags)
+            } else {
+                setTags([])
+            }
+        } catch (error) {
+            console.error('Error fetching transaction tags:', error)
         }
     }
 

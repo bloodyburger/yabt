@@ -1,8 +1,14 @@
+/**
+ * Insights Component
+ * Shows smart budget insights and warnings
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect } from 'react'
 import { AlertTriangle, TrendingUp, TrendingDown, Lightbulb, X } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useDataService } from '@/contexts/DataContext'
 import { formatMoney } from '@/lib/formatMoney'
 
 interface Insight {
@@ -17,6 +23,7 @@ interface Insight {
 export default function Insights() {
     const { currentBudget } = useBudget()
     const { currency } = useSettings()
+    const dataService = useDataService()
     const [insights, setInsights] = useState<Insight[]>([])
     const [loading, setLoading] = useState(true)
     const [dismissed, setDismissed] = useState<string[]>([])
@@ -25,7 +32,7 @@ export default function Insights() {
         if (currentBudget) {
             fetchInsights()
         }
-    }, [currentBudget])
+    }, [currentBudget, dataService])
 
     const fetchInsights = async () => {
         if (!currentBudget) return
@@ -34,137 +41,68 @@ export default function Insights() {
         try {
             const now = new Date()
             const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-            const firstOfMonthStr = firstOfMonth.toISOString().split('T')[0]
+            const firstOfMonthStr = `${firstOfMonth.getFullYear()}-${String(firstOfMonth.getMonth() + 1).padStart(2, '0')}-01`
+            const lastOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+            const lastOfMonthStr = lastOfMonth.toISOString().split('T')[0]
 
-            // Fetch monthly budgets with category info
-            const { data: monthlyBudgets } = await supabase
-                .from('monthly_budgets')
-                .select(`
-                    category_id,
-                    budgeted,
-                    activity,
-                    available,
-                    categories!inner (
-                        id,
-                        name,
-                        category_groups!inner (
-                            budget_id
-                        )
-                    )
-                `)
-                .eq('month', firstOfMonthStr)
-                .eq('categories.category_groups.budget_id', currentBudget.id)
+            // Fetch categories and monthly budgets
+            const categories = await dataService.getCategories(currentBudget.id)
+            const monthlyBudgets = await dataService.getMonthlyBudgets(currentBudget.id, firstOfMonthStr)
 
             const newInsights: Insight[] = []
 
-            if (monthlyBudgets) {
-                monthlyBudgets.forEach((mb: any) => {
-                    const budgeted = mb.budgeted || 0
-                    const spent = Math.abs(mb.activity || 0)
-                    const categoryName = mb.categories?.name || 'Unknown'
+            // Calculate activity from transactions for each category
+            for (const cat of categories) {
+                const transactions = await dataService.getTransactionsByCategory(cat.id, firstOfMonthStr, lastOfMonthStr)
+                const activity = transactions.reduce((sum, t) => sum + t.amount, 0)
 
-                    if (budgeted > 0) {
-                        const percentUsed = (spent / budgeted) * 100
+                const mb = monthlyBudgets.find(m => m.category_id === cat.id)
+                const budgeted = mb?.budgeted || 0
+                const spent = Math.abs(activity)
+                const available = budgeted + activity // activity is negative for expenses
 
-                        // Over 100% - already overspent
-                        if (percentUsed >= 100) {
-                            newInsights.push({
-                                id: `overspent-${mb.category_id}`,
-                                type: 'warning',
-                                title: `Overspent: ${categoryName}`,
-                                message: `You've exceeded your budget by ${formatMoney(spent - budgeted, currency)}`,
-                                category: categoryName,
-                                value: spent - budgeted
-                            })
-                        }
-                        // Between 80-100% - at risk
-                        else if (percentUsed >= 80) {
-                            const remaining = budgeted - spent
-                            newInsights.push({
-                                id: `atrisk-${mb.category_id}`,
-                                type: 'info',
-                                title: `${categoryName}: ${Math.round(percentUsed)}% used`,
-                                message: `Only ${formatMoney(remaining, currency)} remaining this month`,
-                                category: categoryName,
-                                value: remaining
-                            })
-                        }
+                if (budgeted > 0) {
+                    const percentUsed = (spent / budgeted) * 100
+
+                    // Over 100% - already overspent
+                    if (percentUsed >= 100) {
+                        newInsights.push({
+                            id: `overspent-${cat.id}`,
+                            type: 'warning',
+                            title: `Overspent: ${cat.name}`,
+                            message: `You've exceeded your budget by ${formatMoney(spent - budgeted, currency)}`,
+                            category: cat.name,
+                            value: spent - budgeted
+                        })
                     }
-
-                    // Negative available balance
-                    if (mb.available < 0) {
-                        const existingOverspent = newInsights.find(i => i.id === `overspent-${mb.category_id}`)
-                        if (!existingOverspent) {
-                            newInsights.push({
-                                id: `negative-${mb.category_id}`,
-                                type: 'warning',
-                                title: `${categoryName} is overbudget`,
-                                message: `Cover ${formatMoney(Math.abs(mb.available), currency)} from another category`,
-                                category: categoryName,
-                                value: mb.available
-                            })
-                        }
+                    // Between 80-100% - at risk
+                    else if (percentUsed >= 80) {
+                        const remaining = budgeted - spent
+                        newInsights.push({
+                            id: `atrisk-${cat.id}`,
+                            type: 'info',
+                            title: `${cat.name}: ${Math.round(percentUsed)}% used`,
+                            message: `Only ${formatMoney(remaining, currency)} remaining this month`,
+                            category: cat.name,
+                            value: remaining
+                        })
                     }
-                })
-            }
+                }
 
-            // Fetch last month's data for trend comparison
-            const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-            const lastMonthStr = lastMonth.toISOString().split('T')[0]
-
-            const { data: lastMonthBudgets } = await supabase
-                .from('monthly_budgets')
-                .select(`
-                    category_id,
-                    activity,
-                    categories!inner (
-                        id,
-                        name,
-                        category_groups!inner (
-                            budget_id
-                        )
-                    )
-                `)
-                .eq('month', lastMonthStr)
-                .eq('categories.category_groups.budget_id', currentBudget.id)
-
-            // Compare spending trends
-            if (monthlyBudgets && lastMonthBudgets) {
-                const dayOfMonth = now.getDate()
-                const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-                const progressRatio = dayOfMonth / daysInMonth
-
-                monthlyBudgets.forEach((mb: any) => {
-                    const lastMonthData = lastMonthBudgets.find(
-                        (lm: any) => lm.category_id === mb.category_id
-                    )
-                    if (lastMonthData) {
-                        const currentSpent = Math.abs(mb.activity || 0)
-                        const lastMonthSpent = Math.abs(lastMonthData.activity || 0)
-                        const projectedSpent = lastMonthSpent * progressRatio
-
-                        // Spending 30%+ more than projected
-                        if (currentSpent > projectedSpent * 1.3 && currentSpent > 100) {
-                            const pctIncrease = Math.round(((currentSpent / projectedSpent) - 1) * 100)
-                            const categoryName = mb.categories?.name || 'Unknown'
-
-                            // Avoid duplicate insights
-                            const hasRelatedInsight = newInsights.some(
-                                i => i.category === categoryName
-                            )
-                            if (!hasRelatedInsight && pctIncrease > 30) {
-                                newInsights.push({
-                                    id: `trend-${mb.category_id}`,
-                                    type: 'tip',
-                                    title: `Spending up in ${categoryName}`,
-                                    message: `${pctIncrease}% higher than this time last month`,
-                                    category: categoryName,
-                                    value: pctIncrease
-                                })
-                            }
-                        }
+                // Negative available balance
+                if (available < 0) {
+                    const existingOverspent = newInsights.find(i => i.id === `overspent-${cat.id}`)
+                    if (!existingOverspent) {
+                        newInsights.push({
+                            id: `negative-${cat.id}`,
+                            type: 'warning',
+                            title: `${cat.name} is overbudget`,
+                            message: `Cover ${formatMoney(Math.abs(available), currency)} from another category`,
+                            category: cat.name,
+                            value: available
+                        })
                     }
-                })
+                }
             }
 
             // Sort by severity: warnings first, then info, then tips

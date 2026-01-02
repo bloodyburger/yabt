@@ -1,8 +1,14 @@
+/**
+ * Budget Page
+ * Main budget management view with categories and monthly allocations
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Plus, ChevronDown, ChevronUp, Target, Check, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { ChevronLeft, ChevronRight, Plus, ChevronDown, ChevronUp, Target, Loader2 } from 'lucide-react'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useDataService } from '@/contexts/DataContext'
 import { formatMoney, getMoneyColorClass } from '@/lib/formatMoney'
 import Insights from '@/components/common/Insights'
 import ActivityModal from '@/components/common/ActivityModal'
@@ -15,7 +21,7 @@ interface Category {
     target_date: string | null
 }
 
-interface CategoryGroup {
+interface CategoryGroupDisplay {
     id: string
     name: string
     categories: Category[]
@@ -30,9 +36,23 @@ interface MonthlyBudget {
 export default function Budget() {
     const { currentBudget } = useBudget()
     const { currency, monthStartDay } = useSettings()
+    const dataService = useDataService()
 
-    const [currentMonth, setCurrentMonth] = useState(new Date())
-    const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([])
+    // Calculate the correct initial month based on monthStartDay
+    // If today is before monthStartDay, we're in the previous month's budget period
+    const getInitialMonth = () => {
+        const today = new Date()
+        const currentDay = today.getDate()
+
+        if (currentDay < monthStartDay) {
+            // We're in the previous month's budget period
+            return new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        }
+        return new Date(today.getFullYear(), today.getMonth(), 1)
+    }
+
+    const [currentMonth, setCurrentMonth] = useState(getInitialMonth)
+    const [categoryGroups, setCategoryGroups] = useState<CategoryGroupDisplay[]>([])
     const [monthlyBudgets, setMonthlyBudgets] = useState<MonthlyBudget[]>([])
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
     const [readyToAssign, setReadyToAssign] = useState(0)
@@ -77,7 +97,7 @@ export default function Budget() {
     useEffect(() => {
         if (!currentBudget) return
         fetchBudgetData()
-    }, [currentBudget, currentMonth, monthStartDay])
+    }, [currentBudget, currentMonth, monthStartDay, dataService])
 
     useEffect(() => {
         if (editingCategory && inputRef.current) {
@@ -90,76 +110,74 @@ export default function Budget() {
         if (!currentBudget) return
         setLoading(true)
 
-        const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
+        try {
+            const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
 
-        // Get custom budget month date range
-        const { startDate, endDate } = getBudgetMonthRange(currentMonth)
-        const firstDayStr = startDate.toISOString().split('T')[0]
-        const lastDayStr = endDate.toISOString().split('T')[0]
+            // Get custom budget month date range
+            const { startDate, endDate } = getBudgetMonthRange(currentMonth)
+            const firstDayStr = startDate.toISOString().split('T')[0]
+            const lastDayStr = endDate.toISOString().split('T')[0]
 
-        // Fetch category groups with categories
-        const { data: groups } = await supabase
-            .from('category_groups')
-            .select('id, name, categories(id, name, target_type, target_amount, target_date)')
-            .eq('budget_id', currentBudget.id)
-            .order('sort_order')
+            // Fetch category groups
+            const groups = await dataService.getCategoryGroups(currentBudget.id)
 
-        if (groups) {
-            setCategoryGroups(groups)
+            // Fetch all categories for this budget
+            const categories = await dataService.getCategories(currentBudget.id)
+
+            // Build category groups with categories
+            const groupsWithCategories: CategoryGroupDisplay[] = groups.map(g => ({
+                id: g.id,
+                name: g.name,
+                categories: categories
+                    .filter(c => c.category_group_id === g.id)
+                    .map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        target_type: c.target_type,
+                        target_amount: c.target_amount,
+                        target_date: c.target_date
+                    }))
+            }))
+
+            setCategoryGroups(groupsWithCategories)
             setExpandedGroups(new Set(groups.map(g => g.id)))
+
+            // Get all category IDs for this budget
+            const categoryIds = categories.map(c => c.id)
+
+            // Fetch monthly budgets
+            const budgets = await dataService.getMonthlyBudgets(currentBudget.id, monthStr)
+
+            // Calculate activity per category from transactions
+            const activityByCategory: Record<string, number> = {}
+            for (const catId of categoryIds) {
+                const transactions = await dataService.getTransactionsByCategory(catId, firstDayStr, lastDayStr)
+                activityByCategory[catId] = transactions.reduce((sum, t) => sum + Number(t.amount), 0)
+            }
+
+            // Merge budgets with calculated activity
+            const mergedBudgets = categoryIds.map(catId => {
+                const existing = budgets.find(b => b.category_id === catId)
+                return {
+                    category_id: catId,
+                    budgeted: existing?.budgeted || 0,
+                    activity: activityByCategory[catId] || 0
+                }
+            })
+
+            setMonthlyBudgets(mergedBudgets)
+
+            // Calculate ready to assign
+            const accounts = await dataService.getAccounts(currentBudget.id)
+            const onBudgetAccounts = accounts.filter(a => a.is_on_budget)
+            const totalBalance = onBudgetAccounts.reduce((sum, a) => sum + Number(a.balance), 0)
+            const totalBudgeted = mergedBudgets.reduce((sum, b) => sum + Number(b.budgeted), 0)
+            setReadyToAssign(totalBalance - totalBudgeted)
+        } catch (error) {
+            console.error('Failed to fetch budget data:', error)
+        } finally {
+            setLoading(false)
         }
-
-        // Get all category IDs for this budget
-        const categoryIds = groups?.flatMap(g => g.categories?.map(c => c.id) || []) || []
-
-        // Fetch monthly budgets
-        const { data: budgets } = await supabase
-            .from('monthly_budgets')
-            .select('category_id, budgeted, activity')
-            .eq('month', monthStr)
-            .in('category_id', categoryIds)
-
-        // Fetch transactions for current month to calculate actual activity
-        // Activity = sum of all transactions for each category in the month
-        const { data: transactions } = await supabase
-            .from('transactions')
-            .select('category_id, amount')
-            .in('category_id', categoryIds)
-            .gte('date', firstDayStr)
-            .lte('date', lastDayStr)
-
-        // Calculate activity per category from transactions
-        const activityByCategory: Record<string, number> = {}
-        transactions?.forEach(t => {
-            if (t.category_id) {
-                activityByCategory[t.category_id] = (activityByCategory[t.category_id] || 0) + Number(t.amount)
-            }
-        })
-
-        // Merge budgets with calculated activity
-        const mergedBudgets = categoryIds.map(catId => {
-            const existing = budgets?.find(b => b.category_id === catId)
-            return {
-                category_id: catId,
-                budgeted: existing?.budgeted || 0,
-                activity: activityByCategory[catId] || 0
-            }
-        })
-
-        setMonthlyBudgets(mergedBudgets)
-
-        // Calculate ready to assign
-        const { data: accounts } = await supabase
-            .from('accounts')
-            .select('balance')
-            .eq('budget_id', currentBudget.id)
-            .eq('is_on_budget', true)
-
-        const totalBalance = accounts?.reduce((sum, a) => sum + Number(a.balance), 0) || 0
-        const totalBudgeted = mergedBudgets.reduce((sum, b) => sum + Number(b.budgeted), 0) || 0
-        setReadyToAssign(totalBalance - totalBudgeted)
-
-        setLoading(false)
     }
 
     const getCategoryBudgeted = (categoryId: string) => {
@@ -186,16 +204,12 @@ export default function Budget() {
         })
     }
 
-    const formatMonth = (date: Date) => {
-        return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    }
-
     const prevMonth = () => {
-        setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1))
+        setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
     }
 
     const nextMonth = () => {
-        setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1))
+        setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
     }
 
     const startEditing = (categoryId: string, currentValue: number) => {
@@ -215,18 +229,16 @@ export default function Budget() {
         const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-01`
         const newBudgeted = parseFloat(editValue) || 0
 
-        // Upsert monthly budget
-        const { error } = await supabase
-            .from('monthly_budgets')
-            .upsert({
+        try {
+            // Upsert monthly budget
+            await dataService.upsertMonthlyBudget({
                 category_id: categoryId,
                 month: monthStr,
-                budgeted: newBudgeted
-            }, {
-                onConflict: 'category_id,month'
+                budgeted: newBudgeted,
+                activity: getCategoryActivity(categoryId),
+                available: newBudgeted + getCategoryActivity(categoryId)
             })
 
-        if (!error) {
             // Update local state
             setMonthlyBudgets(prev => {
                 const existing = prev.find(b => b.category_id === categoryId)
@@ -242,28 +254,22 @@ export default function Budget() {
             })
 
             // Recalculate ready to assign
-            const { data: accounts } = await supabase
-                .from('accounts')
-                .select('balance')
-                .eq('budget_id', currentBudget.id)
-                .eq('is_on_budget', true)
+            const accounts = await dataService.getAccounts(currentBudget.id)
+            const onBudgetAccounts = accounts.filter(a => a.is_on_budget)
+            const totalBalance = onBudgetAccounts.reduce((sum, a) => sum + Number(a.balance), 0)
 
-            const totalBalance = accounts?.reduce((sum, a) => sum + Number(a.balance), 0) || 0
-
-            // Get updated budgets
-            const { data: updatedBudgets } = await supabase
-                .from('monthly_budgets')
-                .select('budgeted')
-                .eq('month', monthStr)
-                .in('category_id', categoryGroups.flatMap(g => g.categories?.map(c => c.id) || []))
-
-            const totalBudgeted = updatedBudgets?.reduce((sum, b) => sum + Number(b.budgeted), 0) || 0
+            // Get updated total budgeted
+            const categoryIds = categoryGroups.flatMap(g => g.categories?.map(c => c.id) || [])
+            const updatedBudgets = await dataService.getMonthlyBudgets(currentBudget.id, monthStr)
+            const totalBudgeted = updatedBudgets.reduce((sum, b) => sum + Number(b.budgeted), 0)
             setReadyToAssign(totalBalance - totalBudgeted)
+        } catch (error) {
+            console.error('Failed to save budget:', error)
+        } finally {
+            setSaving(false)
+            setEditingCategory(null)
+            setEditValue('')
         }
-
-        setSaving(false)
-        setEditingCategory(null)
-        setEditValue('')
     }
 
     const handleKeyDown = (e: React.KeyboardEvent, categoryId: string) => {

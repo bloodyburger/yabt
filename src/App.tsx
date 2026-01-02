@@ -8,6 +8,9 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 initPostHog()
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { BudgetProvider } from '@/contexts/BudgetContext'
+import { DataProvider } from '@/contexts/DataContext'
+import { EncryptionProvider, useEncryption } from '@/contexts/EncryptionContext'
+import PassphraseModal from '@/components/common/PassphraseModal'
 import Layout from '@/components/layout/Layout'
 import Landing from '@/pages/Landing'
 import Login from '@/pages/auth/Login'
@@ -37,6 +40,25 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     if (!user) {
         return <Navigate to="/auth/login" replace />
+    }
+
+    return <>{children}</>
+}
+
+// Gate that requires encryption to be unlocked
+function EncryptionGate({ children }: { children: React.ReactNode }) {
+    const { isUnlocked, isLoading } = useEncryption()
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="w-10 h-10 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        )
+    }
+
+    if (!isUnlocked) {
+        return <PassphraseModal />
     }
 
     return <>{children}</>
@@ -90,9 +112,15 @@ function AppRoutes() {
                     element={
                         <ProtectedRoute>
                             <SettingsProvider>
-                                <BudgetProvider>
-                                    <Layout />
-                                </BudgetProvider>
+                                <DataProvider>
+                                    <EncryptionProvider>
+                                        <EncryptionGate>
+                                            <BudgetProvider>
+                                                <Layout />
+                                            </BudgetProvider>
+                                        </EncryptionGate>
+                                    </EncryptionProvider>
+                                </DataProvider>
                             </SettingsProvider>
                         </ProtectedRoute>
                     }

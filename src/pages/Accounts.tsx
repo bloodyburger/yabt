@@ -1,64 +1,49 @@
+/**
+ * Accounts Page
+ * Displays user's financial accounts with balances
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, CreditCard, Wallet, Building, Loader2 } from 'lucide-react'
-import { supabase, logger } from '@/lib/supabase'
+import { Plus, CreditCard, Wallet, Building, Loader2, Pencil } from 'lucide-react'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useDataService } from '@/contexts/DataContext'
 import { formatMoney, getMoneyColorClass } from '@/lib/formatMoney'
+import { logger } from '@/lib/logger'
+import type { Account } from '@/lib/dataService'
 
-interface Account {
-    id: string
-    name: string
-    account_type: string
-    balance: number
-    is_on_budget: boolean
-}
+
 
 export default function Accounts() {
     const { currentBudget } = useBudget()
     const { currency } = useSettings()
+    const dataService = useDataService()
 
     const [accounts, setAccounts] = useState<Account[]>([])
     const [loading, setLoading] = useState(true)
     const [showAddModal, setShowAddModal] = useState(false)
+    const [editingAccount, setEditingAccount] = useState<Account | null>(null)
 
     useEffect(() => {
-        if (!currentBudget) {
-            logger.warn('Accounts: No currentBudget available')
-            return
-        }
-        logger.info('Accounts: Budget changed, fetching accounts', { budgetId: currentBudget.id })
+        if (!currentBudget) return
         fetchAccounts()
-    }, [currentBudget])
+    }, [currentBudget, dataService])
 
     const fetchAccounts = async () => {
-        if (!currentBudget) {
-            logger.warn('Accounts: fetchAccounts called without currentBudget')
-            return
+        if (!currentBudget) return
+
+        try {
+            const data = await dataService.getAccounts(currentBudget.id)
+            // Filter out closed accounts
+            const openAccounts = data.filter((a: Account) => !a.closed)
+            setAccounts(openAccounts as Account[])
+        } catch (error) {
+            console.error('Failed to fetch accounts:', error)
+        } finally {
+            setLoading(false)
         }
-
-        logger.info('Accounts: Fetching accounts for budget', { budgetId: currentBudget.id })
-
-        const { data, error, count } = await supabase
-            .from('accounts')
-            .select('*', { count: 'exact' })
-            .eq('budget_id', currentBudget.id)
-            .eq('closed', false)
-            .order('sort_order')
-
-        logger.table('accounts', 'SELECT', { budget_id: currentBudget.id, closed: false }, { data, error, count: count ?? undefined })
-
-        if (error) {
-            logger.error('Failed to fetch accounts', error)
-        }
-
-        logger.info('Accounts: Loaded accounts', {
-            count: data?.length ?? 0,
-            totalBalance: data?.reduce((sum, a) => sum + a.balance, 0) ?? 0
-        })
-
-        setAccounts(data || [])
-        setLoading(false)
     }
 
     const getAccountIcon = (type: string) => {
@@ -72,6 +57,7 @@ export default function Accounts() {
         }
     }
 
+    // Only count is_on_budget accounts towards total
     const totalBalance = accounts.filter(a => a.is_on_budget).reduce((sum, a) => sum + a.balance, 0)
 
     return (
@@ -93,7 +79,7 @@ export default function Accounts() {
 
             {/* Total Balance Card */}
             <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-6 mb-6 text-white">
-                <p className="text-blue-100 mb-1">Total Balance (On Budget)</p>
+                <p className="text-blue-100 mb-1">Total Balance (Tracked)</p>
                 <p className="text-3xl font-bold">{formatMoney(totalBalance, currency)}</p>
             </div>
 
@@ -117,30 +103,41 @@ export default function Accounts() {
             ) : (
                 <div className="space-y-3">
                     {accounts.map(account => (
-                        <Link
+                        <div
                             key={account.id}
-                            to={`/app/accounts/${account.id}`}
                             className="block bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-blue-300 dark:hover:border-blue-600 transition-colors group"
                         >
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
+                                <Link to={`/app/accounts/${account.id}`} className="flex items-center gap-4 flex-1">
                                     <div className="w-12 h-12 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-500 transition-colors">
                                         {getAccountIcon(account.account_type)}
                                     </div>
                                     <div>
                                         <h3 className="font-medium text-slate-900 dark:text-white">{account.name}</h3>
                                         <p className="text-sm text-slate-500 dark:text-slate-400 capitalize">
-                                            {account.account_type} • {account.is_on_budget ? 'On Budget' : 'Tracking'}
+                                            {account.account_type} • {account.is_on_budget ? 'Tracked' : 'Untracked'}
                                         </p>
                                     </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className={`text-lg font-semibold ${getMoneyColorClass(account.balance)}`}>
-                                        {formatMoney(account.balance, currency)}
-                                    </p>
+                                </Link>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={(e) => { e.preventDefault(); setEditingAccount(account); }}
+                                        className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                        title="Edit account"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <div className="text-right">
+                                        <p className={`text-lg font-semibold ${getMoneyColorClass(account.balance)}`}>
+                                            {formatMoney(account.balance, currency)}
+                                        </p>
+                                        {!account.is_on_budget && (
+                                            <span className="text-xs text-slate-400">Not in budget</span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </Link>
+                        </div>
                     ))}
                 </div>
             )}
@@ -152,12 +149,21 @@ export default function Accounts() {
                     onClose={() => { setShowAddModal(false); fetchAccounts(); }}
                 />
             )}
+
+            {/* Edit Account Modal */}
+            {editingAccount && (
+                <EditAccountModal
+                    account={editingAccount}
+                    onClose={() => { setEditingAccount(null); fetchAccounts(); }}
+                />
+            )}
         </div>
     )
 }
 
 function AddAccountModal({ budgetId, onClose }: { budgetId: string; onClose: () => void }) {
     const { currency } = useSettings()
+    const dataService = useDataService()
 
     const currencySymbols: Record<string, string> = {
         USD: '$', EUR: '€', GBP: '£', INR: '₹', JPY: '¥',
@@ -179,22 +185,20 @@ function AddAccountModal({ budgetId, onClose }: { budgetId: string; onClose: () 
         setLoading(true)
         setError('')
 
-        const { error: insertError } = await supabase
-            .from('accounts')
-            .insert({
+        try {
+            await dataService.createAccount({
                 budget_id: budgetId,
                 name: name.trim(),
                 account_type: accountType,
                 balance: parseFloat(balance) || 0,
                 is_on_budget: isOnBudget,
-                closed: false
+                closed: false,
+                sort_order: 0
             })
-
-        if (insertError) {
-            setError(insertError.message)
-            setLoading(false)
-        } else {
             onClose()
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create account')
+            setLoading(false)
         }
     }
 
@@ -276,6 +280,92 @@ function AddAccountModal({ budgetId, onClose }: { budgetId: string; onClose: () 
                             </button>
                             <button type="submit" disabled={loading || !name.trim()} className="btn btn-primary flex-1">
                                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Account'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function EditAccountModal({ account, onClose }: { account: Account; onClose: () => void }) {
+    const dataService = useDataService()
+
+    const [name, setName] = useState(account.name)
+    const [isOnBudget, setIsOnBudget] = useState(account.is_on_budget)
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!name.trim()) return
+
+        setLoading(true)
+        setError('')
+
+        try {
+            await dataService.updateAccount(account.id, {
+                name: name.trim(),
+                is_on_budget: isOnBudget
+            })
+            onClose()
+        } catch (err: any) {
+            console.error('Account update error:', err)
+            logger.error('Account update failed', { accountId: account.id, error: err?.message || String(err) })
+            setError(err?.message || JSON.stringify(err) || 'Failed to update account')
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+
+            <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md animate-fade-in">
+                <div className="p-6">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Edit Account</h2>
+
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {error && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+                                {error}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                Account Name
+                            </label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="e.g., Checking, Savings, Credit Card"
+                                className="input"
+                                required
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="editIsOnBudget"
+                                checked={isOnBudget}
+                                onChange={(e) => setIsOnBudget(e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="editIsOnBudget" className="text-sm text-slate-700 dark:text-slate-300">
+                                Track in budget (include in totals and reports)
+                            </label>
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={loading || !name.trim()} className="btn btn-primary flex-1">
+                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                             </button>
                         </div>
                     </form>

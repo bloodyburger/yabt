@@ -1,7 +1,13 @@
+/**
+ * NLP Transaction Input
+ * Natural language transaction creation with AI parsing
+ * Uses DataService for storage abstraction
+ */
+
 import { useState } from 'react'
 import { Loader2, Wand2, X, Mic, MicOff } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
+import { useData } from '@/contexts/DataContext'
 
 interface NLPTransactionInputProps {
     onClose: () => void
@@ -10,6 +16,7 @@ interface NLPTransactionInputProps {
 
 export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransactionInputProps) {
     const { currentBudget } = useBudget()
+    const { dataService, isInitialized } = useData()
     const [text, setText] = useState('')
     const [loading, setLoading] = useState(false)
     const [isListening, setIsListening] = useState(false)
@@ -19,7 +26,7 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
     const [parsedResult, setParsedResult] = useState<any>(null)
 
     const parseTransaction = async () => {
-        if (!text.trim() || !currentBudget) return
+        if (!text.trim() || !currentBudget || !isInitialized) return
 
         setLoading(true)
         setError('')
@@ -27,7 +34,6 @@ export default function NLPTransactionInput({ onClose, onSuccess }: NLPTransacti
 
         try {
             // Call our backend proxy (which forwards to Ollama Cloud API)
-            // The backend handles the API key to avoid CORS issues
             const response = await fetch(
                 '/api/ai/chat',
                 {
@@ -78,7 +84,6 @@ Rules:
             }
 
             const data = await response.json()
-            // Ollama API returns message.content, not choices[x].message.content
             const resultText = data.message?.content || data.choices?.[0]?.message?.content || ''
 
             // Parse JSON from response
@@ -95,17 +100,14 @@ Rules:
             }
 
             // Get all accounts for matching
-            const { data: allAccounts } = await supabase
-                .from('accounts')
-                .select('id, name')
-                .eq('budget_id', currentBudget.id)
-                .eq('closed', false)
+            const allAccounts = await dataService.getAccounts(currentBudget.id)
+            const openAccounts = allAccounts.filter(a => !a.closed)
 
             let accountId: string | null = null
 
             // Try to match parsed account name
-            if (parsed.account && allAccounts) {
-                const matchingAccount = allAccounts.find((a: any) =>
+            if (parsed.account && openAccounts.length > 0) {
+                const matchingAccount = openAccounts.find(a =>
                     a.name.toLowerCase().includes(parsed.account.toLowerCase()) ||
                     parsed.account.toLowerCase().includes(a.name.toLowerCase())
                 )
@@ -116,27 +118,21 @@ Rules:
 
             // If no account matched, use or create "Inbox"
             if (!accountId) {
-                const inboxAccount = allAccounts?.find((a: any) => a.name === 'Inbox')
+                const inboxAccount = openAccounts.find(a => a.name === 'Inbox')
                 if (inboxAccount) {
                     accountId = inboxAccount.id
                 } else {
                     // Create Inbox savings account
-                    const { data: newInbox } = await supabase
-                        .from('accounts')
-                        .insert({
-                            budget_id: currentBudget.id,
-                            name: 'Inbox',
-                            account_type: 'savings',
-                            balance: 0,
-                            is_on_budget: true,
-                            closed: false
-                        })
-                        .select()
-                        .single()
-
-                    if (newInbox) {
-                        accountId = newInbox.id
-                    }
+                    const newInbox = await dataService.createAccount({
+                        budget_id: currentBudget.id,
+                        name: 'Inbox',
+                        type: 'savings',
+                        balance: 0,
+                        on_budget: true,
+                        closed: false,
+                        sort_order: 999
+                    })
+                    accountId = newInbox.id
                 }
             }
 
@@ -146,18 +142,14 @@ Rules:
             }
 
             // Find or create category
-            let categoryId = null
+            let categoryId: string | null = null
             let usedLearnedCategory = false
 
             // LEARNING: First check if we have a learned rule for this payee
             if (parsed.payee) {
                 const normalizedPayee = parsed.payee.toLowerCase().trim()
-                const { data: learnedRule } = await supabase
-                    .from('payee_category_rules')
-                    .select('category_id')
-                    .eq('budget_id', currentBudget.id)
-                    .eq('payee_name', normalizedPayee)
-                    .single()
+                const rules = await dataService.getPayeeCategoryRules(currentBudget.id)
+                const learnedRule = rules.find(r => r.payee_name === normalizedPayee)
 
                 if (learnedRule?.category_id) {
                     categoryId = learnedRule.category_id
@@ -167,13 +159,9 @@ Rules:
 
             // If no learned rule, use AI-suggested category
             if (!categoryId && parsed.category) {
-                // Try to find matching category
-                const { data: categories } = await supabase
-                    .from('categories')
-                    .select('id, name, category_group_id, category_groups!inner(budget_id)')
-                    .eq('category_groups.budget_id', currentBudget.id)
+                const categories = await dataService.getCategories(currentBudget.id)
 
-                const matchingCategory = categories?.find((c: any) =>
+                const matchingCategory = categories.find(c =>
                     c.name.toLowerCase().includes(parsed.category.toLowerCase()) ||
                     parsed.category.toLowerCase().includes(c.name.toLowerCase())
                 )
@@ -181,31 +169,25 @@ Rules:
                 if (matchingCategory) {
                     categoryId = matchingCategory.id
                 } else {
-                    // Use Assorted/Uncategorized
-                    const assortedCat = categories?.find((c: any) => c.name === 'Uncategorized')
-                    categoryId = assortedCat?.id || null
+                    // Use Uncategorized if exists
+                    const uncategorized = categories.find(c => c.name === 'Uncategorized')
+                    categoryId = uncategorized?.id || null
                 }
             }
 
             // Get or create payee
-            let payeeId = null
+            let payeeId: string | null = null
             if (parsed.payee) {
-                const { data: existingPayee } = await supabase
-                    .from('payees')
-                    .select('id')
-                    .eq('budget_id', currentBudget.id)
-                    .ilike('name', parsed.payee)
-                    .limit(1)
+                const existingPayee = await dataService.getPayeeByName(currentBudget.id, parsed.payee)
 
-                if (existingPayee && existingPayee.length > 0) {
-                    payeeId = existingPayee[0].id
+                if (existingPayee) {
+                    payeeId = existingPayee.id
                 } else {
-                    const { data: newPayee } = await supabase
-                        .from('payees')
-                        .insert({ budget_id: currentBudget.id, name: parsed.payee })
-                        .select()
-                        .single()
-                    payeeId = newPayee?.id
+                    const newPayee = await dataService.createPayee({
+                        budget_id: currentBudget.id,
+                        name: parsed.payee
+                    })
+                    payeeId = newPayee.id
                 }
             }
 
@@ -213,10 +195,11 @@ Rules:
             const transactionDate = parsed.date || new Date().toISOString().split('T')[0]
 
             // Create transaction
-            await supabase.from('transactions').insert({
+            await dataService.createTransaction({
                 account_id: accountId,
                 category_id: categoryId,
                 payee_id: payeeId,
+                transfer_account_id: null,
                 date: transactionDate,
                 amount: finalAmount,
                 memo: parsed.memo || `[NLP] ${text.substring(0, 50)}`,
@@ -225,67 +208,23 @@ Rules:
             })
 
             // Update account balance
-            const { data: accData } = await supabase
-                .from('accounts')
-                .select('balance')
-                .eq('id', accountId)
-                .single()
-
-            await supabase
-                .from('accounts')
-                .update({ balance: (accData?.balance || 0) + finalAmount })
-                .eq('id', accountId)
-
-            // Log activity
-            const { data: { user } } = await supabase.auth.getUser()
-            await supabase.from('activity_log').insert({
-                user_id: user?.id,
-                action: 'nlp_transaction_created',
-                entity_type: 'transaction',
-                details: { input_text: text, parsed_result: parsed }
-            })
+            const account = await dataService.getAccount(accountId)
+            if (account) {
+                await dataService.updateAccount(accountId, {
+                    balance: account.balance + finalAmount
+                })
+            }
 
             // LEARNING: Save payee-category rule for future use
             if (parsed.payee && categoryId && !usedLearnedCategory) {
                 const normalizedPayee = parsed.payee.toLowerCase().trim()
-                await supabase
-                    .from('payee_category_rules')
-                    .upsert({
-                        budget_id: currentBudget.id,
-                        payee_name: normalizedPayee,
-                        category_id: categoryId,
-                        usage_count: 1,
-                        last_used_at: new Date().toISOString()
-                    }, {
-                        onConflict: 'budget_id,payee_name'
-                    })
-            } else if (parsed.payee && categoryId && usedLearnedCategory) {
-                // Increment usage count for existing rule
-                const normalizedPayee = parsed.payee.toLowerCase().trim()
-                await supabase.rpc('increment_payee_rule_usage', {
-                    p_budget_id: currentBudget.id,
-                    p_payee_name: normalizedPayee
-                }).then(() => { }).catch(() => {
-                    // Silently fail if RPC doesn't exist yet
-                })
+                await dataService.upsertPayeeCategoryRule(currentBudget.id, normalizedPayee, categoryId)
             }
 
             onSuccess()
             onClose()
         } catch (err: any) {
             setError(err.message || 'Failed to parse transaction')
-
-            // Log failure
-            const { data: { user } } = await supabase.auth.getUser()
-            await supabase.from('activity_log').insert({
-                user_id: user?.id,
-                action: 'nlp_transaction_failed',
-                status: 'error',
-                error_message: err.message,
-                details: { input_text: text }
-            })
-
-
         } finally {
             setLoading(false)
         }

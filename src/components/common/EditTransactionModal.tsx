@@ -1,8 +1,14 @@
+/**
+ * Edit Transaction Modal
+ * Allows editing existing transactions with full payee, category, and transfer support
+ * Uses DataService for storage abstraction
+ */
+
 import { useState, useEffect, useRef } from 'react'
 import { X, Loader2, Search, Plus, Trash2, Tag } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useData } from '@/contexts/DataContext'
 import TagManager from './TagManager'
 
 const currencySymbols: Record<string, string> = {
@@ -40,6 +46,8 @@ interface Transaction {
     cleared: boolean
     payee?: { name: string } | null
     category?: { name: string } | null
+    payeeName?: string
+    categoryName?: string
 }
 
 interface EditTransactionModalProps {
@@ -51,6 +59,7 @@ interface EditTransactionModalProps {
 export default function EditTransactionModal({ transaction, onClose, onUpdate }: EditTransactionModalProps) {
     const { currentBudget } = useBudget()
     const { currency } = useSettings()
+    const { dataService } = useData()
     const currencySymbol = currencySymbols[currency] || '$'
 
     const [accounts, setAccounts] = useState<Account[]>([])
@@ -81,36 +90,45 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate }:
     useEffect(() => {
         if (!currentBudget) return
 
-        supabase
-            .from('accounts')
-            .select('id, name')
-            .eq('budget_id', currentBudget.id)
-            .eq('closed', false)
-            .then(({ data }) => setAccounts(data || []))
+        const loadData = async () => {
+            try {
+                // Fetch accounts
+                const accountsData = await dataService.getAccounts(currentBudget.id)
+                const openAccounts = accountsData.filter(a => !a.closed)
+                setAccounts(openAccounts.map(a => ({ id: a.id, name: a.name })))
 
-        supabase
-            .from('category_groups')
-            .select('id, name, categories(id, name)')
-            .eq('budget_id', currentBudget.id)
-            .then(({ data }) => setCategoryGroups(data || []))
+                // Fetch category groups and categories
+                const groups = await dataService.getCategoryGroups(currentBudget.id)
+                const categories = await dataService.getCategories(currentBudget.id)
 
-        supabase
-            .from('payees')
-            .select('id, name')
-            .eq('budget_id', currentBudget.id)
-            .order('name')
-            .then(({ data }) => {
-                setPayees(data || [])
+                const groupsWithCategories = groups.map(g => ({
+                    id: g.id,
+                    name: g.name,
+                    categories: categories
+                        .filter(c => c.category_group_id === g.id)
+                        .map(c => ({ id: c.id, name: c.name }))
+                }))
+                setCategoryGroups(groupsWithCategories)
+
+                // Fetch payees
+                const payeesData = await dataService.getPayees(currentBudget.id)
+                setPayees(payeesData.map(p => ({ id: p.id, name: p.name })))
+
                 // Set initial payee
                 if (transaction.payee_id) {
-                    const existingPayee = data?.find(p => p.id === transaction.payee_id)
+                    const existingPayee = payeesData.find(p => p.id === transaction.payee_id)
                     if (existingPayee) {
-                        setSelectedPayee(existingPayee)
+                        setSelectedPayee({ id: existingPayee.id, name: existingPayee.name })
                         setPayeeSearch(existingPayee.name)
                     }
                 }
-            })
-    }, [currentBudget, transaction])
+            } catch (err) {
+                console.error('Failed to load data:', err)
+            }
+        }
+
+        loadData()
+    }, [currentBudget, dataService, transaction])
 
     useEffect(() => {
         const transferPayees: Payee[] = accounts
@@ -167,36 +185,13 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate }:
     const handleDelete = async () => {
         setDeleting(true)
         try {
-            const oldAmount = transaction.amount
-
-            // Delete transaction
-            await supabase.from('transactions').delete().eq('id', transaction.id)
-
-            // Update account balance (reverse the original amount)
-            const { data: accData } = await supabase
-                .from('accounts')
-                .select('balance')
-                .eq('id', transaction.account_id)
-                .single()
-
-            await supabase
-                .from('accounts')
-                .update({ balance: (accData?.balance || 0) - oldAmount })
-                .eq('id', transaction.account_id)
-
-            // Log activity
-            await supabase.from('activity_log').insert({
-                user_id: (await supabase.auth.getUser()).data.user?.id,
-                action: 'transaction_deleted',
-                entity_type: 'transaction',
-                entity_id: transaction.id,
-                details: { deleted_transaction: transaction }
-            })
+            // Delete transaction (DataService handles balance updates)
+            await dataService.deleteTransaction(transaction.id)
 
             onUpdate()
             onClose()
-        } catch (err: any) {
-            setError(err.message || 'Failed to delete')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to delete')
             setDeleting(false)
         }
     }
@@ -211,18 +206,17 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate }:
         try {
             const amountValue = parseFloat(amount)
             const finalAmount = transactionType === 'expense' ? -Math.abs(amountValue) : Math.abs(amountValue)
-            const oldAmount = transaction.amount
 
             // Get or create payee
             let payeeId = null
             if (selectedPayee) {
                 if (selectedPayee.id.startsWith('new-')) {
-                    const { data: newPayee } = await supabase
-                        .from('payees')
-                        .insert({ budget_id: currentBudget.id, name: selectedPayee.name })
-                        .select()
-                        .single()
-                    payeeId = newPayee?.id
+                    // Create new payee
+                    const newPayee = await dataService.createPayee({
+                        budget_id: currentBudget.id,
+                        name: selectedPayee.name
+                    })
+                    payeeId = newPayee.id
                 } else if (!selectedPayee.isTransfer) {
                     payeeId = selectedPayee.id
                 } else {
@@ -231,62 +225,31 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate }:
                     if (existing) {
                         payeeId = existing.id
                     } else {
-                        const { data: newPayee } = await supabase
-                            .from('payees')
-                            .insert({ budget_id: currentBudget.id, name: selectedPayee.name })
-                            .select()
-                            .single()
-                        payeeId = newPayee?.id
+                        const newPayee = await dataService.createPayee({
+                            budget_id: currentBudget.id,
+                            name: selectedPayee.name
+                        })
+                        payeeId = newPayee.id
                     }
                 }
             }
 
             // Update transaction
-            await supabase
-                .from('transactions')
-                .update({
-                    account_id: accountId,
-                    category_id: selectedPayee?.isTransfer ? null : (categoryId || null),
-                    payee_id: payeeId,
-                    transfer_account_id: selectedPayee?.transferAccountId || null,
-                    date,
-                    amount: finalAmount,
-                    memo: memo.trim() || null,
-                    cleared
-                })
-                .eq('id', transaction.id)
-
-            // Update account balance (difference)
-            const balanceChange = finalAmount - oldAmount
-            if (balanceChange !== 0) {
-                const { data: accData } = await supabase
-                    .from('accounts')
-                    .select('balance')
-                    .eq('id', accountId)
-                    .single()
-
-                await supabase
-                    .from('accounts')
-                    .update({ balance: (accData?.balance || 0) + balanceChange })
-                    .eq('id', accountId)
-            }
-
-            // Log activity
-            await supabase.from('activity_log').insert({
-                user_id: (await supabase.auth.getUser()).data.user?.id,
-                action: 'transaction_updated',
-                entity_type: 'transaction',
-                entity_id: transaction.id,
-                details: {
-                    before: transaction,
-                    after: { accountId, categoryId, payeeId, date, amount: finalAmount, memo, cleared }
-                }
+            await dataService.updateTransaction(transaction.id, {
+                account_id: accountId,
+                category_id: selectedPayee?.isTransfer ? null : (categoryId || null),
+                payee_id: payeeId,
+                transfer_account_id: selectedPayee?.transferAccountId || null,
+                date,
+                amount: finalAmount,
+                memo: memo.trim() || null,
+                cleared
             })
 
             onUpdate()
             onClose()
-        } catch (err: any) {
-            setError(err.message || 'Failed to update')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update')
         } finally {
             setLoading(false)
         }
