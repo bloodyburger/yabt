@@ -188,15 +188,34 @@ function AddAccountModal({ budgetId, onClose }: { budgetId: string; onClose: () 
         setError('')
 
         try {
-            await dataService.createAccount({
+            const initialBalance = parseFloat(balance) || 0
+
+            // Create the account
+            const newAccount = await dataService.createAccount({
                 budget_id: budgetId,
                 name: name.trim(),
                 account_type: accountType,
-                balance: parseFloat(balance) || 0,
+                balance: initialBalance,
                 is_on_budget: isOnBudget,
                 closed: false,
                 sort_order: 0
             })
+
+            // Create Initial Balance transaction if balance is not zero
+            if (initialBalance !== 0) {
+                await dataService.createTransaction({
+                    account_id: newAccount.id,
+                    category_id: null,
+                    payee_id: null,
+                    transfer_account_id: null,
+                    date: new Date().toISOString().split('T')[0],
+                    amount: initialBalance,
+                    memo: 'Initial Balance',
+                    cleared: true,
+                    approved: true
+                })
+            }
+
             onClose()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create account')
