@@ -486,7 +486,7 @@ function AddCategoryGroupModal({ budgetId, dataService, onClose }: AddCategoryGr
             await dataService.createCategoryGroup({
                 budget_id: budgetId,
                 name: name.trim(),
-                hidden: false,
+                is_hidden: false,
                 sort_order: 0
             })
             onClose()

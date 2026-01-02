@@ -28,7 +28,7 @@ export interface CategoryGroup {
     id: string
     budget_id: string
     name: string
-    hidden: boolean
+    is_hidden: boolean
     sort_order: number
 }
 
