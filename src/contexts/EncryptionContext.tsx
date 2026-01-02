@@ -3,7 +3,7 @@
  * Manages per-user encryption key and passphrase
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
 import { useAuth } from './AuthContext'
 import { supabase } from '@/lib/supabase'
 import {
@@ -13,7 +13,7 @@ import {
     decryptDataKey
 } from '@/lib/encryption'
 
-const PASSPHRASE_SESSION_KEY = 'yabt_encryption_passphrase_hash'
+const PASSPHRASE_SESSION_KEY = 'yabt_encryption_passphrase'
 
 interface EncryptionContextType {
     isEncryptionSetup: boolean  // Has user set up encryption?
@@ -38,8 +38,9 @@ export function EncryptionProvider({ children }: { children: ReactNode }) {
     const [isUnlocked, setIsUnlocked] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const autoUnlockAttempted = useRef(false)
 
-    // Check if user has encryption set up
+    // Check if user has encryption set up and try to auto-unlock from session
     useEffect(() => {
         async function checkEncryptionStatus() {
             if (!user) {
@@ -58,7 +59,25 @@ export function EncryptionProvider({ children }: { children: ReactNode }) {
                     console.error('Error checking encryption status:', error)
                 }
 
-                setIsEncryptionSetup(!!data)
+                const hasEncryption = !!data
+                setIsEncryptionSetup(hasEncryption)
+
+                // Try to auto-unlock from session storage
+                if (hasEncryption && !autoUnlockAttempted.current) {
+                    autoUnlockAttempted.current = true
+                    const storedPassphrase = sessionStorage.getItem(PASSPHRASE_SESSION_KEY)
+                    if (storedPassphrase) {
+                        try {
+                            const unlockResult = await unlockWithPassphrase(user.id, storedPassphrase)
+                            if (!unlockResult) {
+                                // Invalid stored passphrase, clear it
+                                sessionStorage.removeItem(PASSPHRASE_SESSION_KEY)
+                            }
+                        } catch {
+                            sessionStorage.removeItem(PASSPHRASE_SESSION_KEY)
+                        }
+                    }
+                }
             } catch (err) {
                 console.error('Failed to check encryption status:', err)
             } finally {
@@ -68,6 +87,28 @@ export function EncryptionProvider({ children }: { children: ReactNode }) {
 
         checkEncryptionStatus()
     }, [user])
+
+    // Internal unlock function that can be reused
+    const unlockWithPassphrase = async (userId: string, passphrase: string): Promise<boolean> => {
+        try {
+            const { data, error } = await supabase
+                .from('user_encryption_keys')
+                .select('encrypted_key')
+                .eq('user_id', userId)
+                .single()
+
+            if (error || !data) {
+                return false
+            }
+
+            const dataKey = await decryptDataKey(data.encrypted_key, passphrase)
+            setEncryptionKey(dataKey)
+            setIsUnlocked(true)
+            return true
+        } catch {
+            return false
+        }
+    }
 
     // Set up encryption for the first time
     const setupEncryption = useCallback(async (passphrase: string) => {
@@ -96,6 +137,9 @@ export function EncryptionProvider({ children }: { children: ReactNode }) {
 
             if (error) throw error
 
+            // Store passphrase in session for persistence
+            sessionStorage.setItem(PASSPHRASE_SESSION_KEY, passphrase)
+
             // Set state
             setEncryptionKey(dataKey)
             setIsEncryptionSetup(true)
@@ -117,23 +161,16 @@ export function EncryptionProvider({ children }: { children: ReactNode }) {
         setError(null)
 
         try {
-            // Get encrypted key from database
-            const { data, error } = await supabase
-                .from('user_encryption_keys')
-                .select('encrypted_key')
-                .eq('user_id', user.id)
-                .single()
+            const success = await unlockWithPassphrase(user.id, passphrase)
 
-            if (error || !data) {
-                throw new Error('Encryption key not found')
+            if (success) {
+                // Store passphrase in session for persistence across refreshes
+                sessionStorage.setItem(PASSPHRASE_SESSION_KEY, passphrase)
+            } else {
+                setError('Invalid passphrase')
             }
 
-            // Decrypt the data key
-            const dataKey = await decryptDataKey(data.encrypted_key, passphrase)
-
-            setEncryptionKey(dataKey)
-            setIsUnlocked(true)
-            return true
+            return success
         } catch (err) {
             setError('Invalid passphrase')
             setIsUnlocked(false)
@@ -143,10 +180,11 @@ export function EncryptionProvider({ children }: { children: ReactNode }) {
         }
     }, [user, isEncryptionSetup])
 
-    // Lock encryption (clear key from memory)
+    // Lock encryption (clear key from memory and session)
     const lock = useCallback(() => {
         setEncryptionKey(null)
         setIsUnlocked(false)
+        sessionStorage.removeItem(PASSPHRASE_SESSION_KEY)
     }, [])
 
     // Get the encryption key (for use in data services)
@@ -179,3 +217,4 @@ export function useEncryption() {
     }
     return context
 }
+

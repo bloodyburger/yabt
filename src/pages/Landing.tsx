@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import {
     Sparkles, Zap, Shield, PiggyBank, TrendingUp, ChevronRight,
     Check, Star, ArrowRight, Infinity, Smartphone, Cloud, Users, Mail,
     Mic, Lightbulb, Brain, Command
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import logo from '@/assets/logo.png'
 
 // Intersection Observer hook for scroll animations
@@ -25,6 +26,7 @@ function useInView(threshold = 0.1) {
 }
 
 export default function Landing() {
+    const { user, loading } = useAuth()
     const [scrollY, setScrollY] = useState(0)
 
     useEffect(() => {
@@ -32,6 +34,11 @@ export default function Landing() {
         window.addEventListener('scroll', handleScroll, { passive: true })
         return () => window.removeEventListener('scroll', handleScroll)
     }, [])
+
+    // Redirect logged-in users to dashboard
+    if (!loading && user) {
+        return <Navigate to="/app/budget" replace />
+    }
 
     const features = [
         {
