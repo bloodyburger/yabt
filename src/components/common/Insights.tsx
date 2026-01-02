@@ -23,7 +23,7 @@ interface Insight {
 
 export default function Insights() {
     const { currentBudget } = useBudget()
-    const { currency } = useSettings()
+    const { currency, monthStartDay } = useSettings()
     const dataService = useDataService()
     const { refreshKey } = useTransactionModal()
     const [insights, setInsights] = useState<Insight[]>([])
@@ -34,7 +34,25 @@ export default function Insights() {
         if (currentBudget) {
             fetchInsights()
         }
-    }, [currentBudget, dataService, refreshKey])
+    }, [currentBudget, dataService, refreshKey, monthStartDay])
+
+    const getBudgetPeriod = () => {
+        const today = new Date()
+        const currentDay = today.getDate()
+        const baseDate = currentDay < monthStartDay
+            ? new Date(today.getFullYear(), today.getMonth() - 1, 1)
+            : new Date(today.getFullYear(), today.getMonth(), 1)
+
+        const startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), monthStartDay)
+        const endDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, monthStartDay - 1)
+        const monthStr = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-01`
+
+        return {
+            startDate,
+            endDate,
+            monthStr
+        }
+    }
 
     const fetchInsights = async () => {
         if (!currentBudget) return
@@ -42,21 +60,19 @@ export default function Insights() {
         setInsights([])  // Clear old insights first
 
         try {
-            const now = new Date()
-            const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-            const firstOfMonthStr = `${firstOfMonth.getFullYear()}-${String(firstOfMonth.getMonth() + 1).padStart(2, '0')}-01`
-            const lastOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-            const lastOfMonthStr = lastOfMonth.toISOString().split('T')[0]
+            const { startDate, endDate, monthStr } = getBudgetPeriod()
+            const startDateStr = startDate.toISOString().split('T')[0]
+            const endDateStr = endDate.toISOString().split('T')[0]
 
             // Fetch categories and monthly budgets
             const categories = await dataService.getCategories(currentBudget.id)
-            const monthlyBudgets = await dataService.getMonthlyBudgets(currentBudget.id, firstOfMonthStr)
+            const monthlyBudgets = await dataService.getMonthlyBudgets(currentBudget.id, monthStr)
 
             const newInsights: Insight[] = []
 
             // Calculate activity from transactions for each category
             for (const cat of categories) {
-                const transactions = await dataService.getTransactionsByCategory(cat.id, firstOfMonthStr, lastOfMonthStr)
+                const transactions = await dataService.getTransactionsByCategory(cat.id, startDateStr, endDateStr)
                 const activity = transactions.reduce((sum, t) => sum + t.amount, 0)
 
                 const mb = monthlyBudgets.find(m => m.category_id === cat.id)
