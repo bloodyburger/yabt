@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, Plus, ChevronDown, ChevronUp, Target, Loader
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useDataService } from '@/contexts/DataContext'
+import { useTransactionModal } from '@/contexts/TransactionModalContext'
 import { formatMoney, getMoneyColorClass } from '@/lib/formatMoney'
 import Insights from '@/components/common/Insights'
 import ActivityModal from '@/components/common/ActivityModal'
@@ -37,6 +38,7 @@ export default function Budget() {
     const { currentBudget } = useBudget()
     const { currency, monthStartDay } = useSettings()
     const dataService = useDataService()
+    const { triggerRefresh } = useTransactionModal()
 
     // Calculate the correct initial month based on monthStartDay
     // If today is before monthStartDay, we're in the previous month's budget period
@@ -270,6 +272,7 @@ export default function Budget() {
             setSaving(false)
             setEditingCategory(null)
             setEditValue('')
+            triggerRefresh()  // Refresh insights after budget change
         }
     }
 

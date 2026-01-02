@@ -9,6 +9,7 @@ import { AlertTriangle, TrendingUp, TrendingDown, Lightbulb, X } from 'lucide-re
 import { useBudget } from '@/contexts/BudgetContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useDataService } from '@/contexts/DataContext'
+import { useTransactionModal } from '@/contexts/TransactionModalContext'
 import { formatMoney } from '@/lib/formatMoney'
 
 interface Insight {
@@ -24,6 +25,7 @@ export default function Insights() {
     const { currentBudget } = useBudget()
     const { currency } = useSettings()
     const dataService = useDataService()
+    const { refreshKey } = useTransactionModal()
     const [insights, setInsights] = useState<Insight[]>([])
     const [loading, setLoading] = useState(true)
     const [dismissed, setDismissed] = useState<string[]>([])
@@ -32,7 +34,7 @@ export default function Insights() {
         if (currentBudget) {
             fetchInsights()
         }
-    }, [currentBudget, dataService])
+    }, [currentBudget, dataService, refreshKey])
 
     const fetchInsights = async () => {
         if (!currentBudget) return
