@@ -106,7 +106,7 @@ export default function NotificationBell() {
             {showDropdown && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="absolute left-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
                         <div className="flex items-center justify-between p-3 border-b border-slate-100 dark:border-slate-700">
                             <h3 className="font-semibold text-slate-900 dark:text-white">Notifications</h3>
                             {unreadCount > 0 && (
