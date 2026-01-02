@@ -29,14 +29,16 @@ interface NetWorthSnapshot {
 const ACCOUNT_ICONS: Record<string, any> = {
     checking: Wallet,
     savings: PiggyBank,
-    credit: CreditCard,
+    credit_card: CreditCard,
     investment: TrendingUp,
     loan: Landmark,
-    asset: Building2
+    asset: Building2,
+    cash: Wallet,
+    tracking: Wallet
 }
 
-const ASSET_TYPES = ['checking', 'savings', 'investment', 'asset', 'cash']
-const LIABILITY_TYPES = ['credit', 'loan', 'mortgage', 'line_of_credit']
+const ASSET_TYPES = ['checking', 'savings', 'investment', 'asset', 'cash', 'tracking']
+const LIABILITY_TYPES = ['credit_card', 'loan', 'mortgage', 'line_of_credit']
 
 export default function NetWorth() {
     const { currentBudget } = useBudget()
@@ -61,12 +63,13 @@ export default function NetWorth() {
             const accountData = await dataService.getAccounts(currentBudget.id)
             const openAccounts = accountData.filter(a => !a.closed)
 
+            // Map account_type to type for display
             const displayAccounts: AccountDisplay[] = openAccounts.map(a => ({
                 id: a.id,
                 name: a.name,
-                type: a.type,
+                type: a.account_type,  // Use account_type from data
                 balance: a.balance,
-                on_budget: a.on_budget
+                on_budget: a.is_on_budget  // Use is_on_budget from data
             }))
             setAccounts(displayAccounts)
 
